@@ -6,7 +6,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     STUDIO_NAME: str = "Krystal Tattoo Studio"
     ENVIRONMENT: str = "development"
-    DATABASE_URL: str = "postgresql+asyncpg://krystal:krystal_dev_password@localhost:5432/krystal_studio"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://krystal:krystal_dev_password@localhost:5432/krystal_studio"
+    )
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

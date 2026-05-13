@@ -1,5 +1,7 @@
 """Route dependencies."""
 
+from __future__ import annotations
+
 import uuid
 from typing import Annotated
 
@@ -19,8 +21,19 @@ from app.core.errors import (
 from app.core.security import decode_access_token
 from app.db.models.user import User
 from app.db.session import get_db
+from app.services.ai.model_router import ModelRouter
+from app.services.ai.prompt_builder import PromptBuilder
+from app.services.ai.provider import OpenAIProvider
+from app.services.ai.safety import SafetyService
+from app.services.analytics.tracker import AnalyticsTracker
+from app.services.chat.intent import IntentClassifier
+from app.services.chat.memory import MemoryService
+from app.services.chat.orchestrator import ChatOrchestrator
+from app.services.leads.extractor import LeadExtractor
+from app.services.leads.service import LeadService
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.ingestion import IngestionService
+from app.services.rag.retriever import RetrieverService
 
 DBSessionDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -94,3 +107,35 @@ async def get_ingestion_service(
 
 
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
+
+
+def get_openai_chat_provider() -> OpenAIProvider:
+    settings = get_settings()
+    key = settings.OPENAI_API_KEY.strip() or "test-openai-placeholder"
+    return OpenAIProvider(api_key=key, default_model=settings.CHAT_MODEL)
+
+
+OpenAIChatProviderDep = Annotated[OpenAIProvider, Depends(get_openai_chat_provider)]
+
+
+async def get_chat_orchestrator(
+    db: DBSessionDep,
+    embedding: EmbeddingServiceDep,
+    ai: OpenAIChatProviderDep,
+) -> ChatOrchestrator:
+    return ChatOrchestrator(
+        db,
+        memory=MemoryService(ai_provider=ai),
+        retriever=RetrieverService(db, embedding),
+        prompt_builder=PromptBuilder(),
+        ai_provider=ai,
+        safety=SafetyService(),
+        intent_classifier=IntentClassifier(ai),
+        lead_extractor=LeadExtractor(ai),
+        analytics=AnalyticsTracker(),
+        model_router=ModelRouter(),
+        lead_service=LeadService(),
+    )
+
+
+ChatOrchestratorDep = Annotated[ChatOrchestrator, Depends(get_chat_orchestrator)]

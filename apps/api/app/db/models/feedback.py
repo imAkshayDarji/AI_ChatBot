@@ -13,7 +13,7 @@ class AIFeedback(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "rating IN (1, 2)",
+            "rating IN (1, 2, 3, 4, 5)",
             name="ai_feedback_rating_check",
         ),
     )

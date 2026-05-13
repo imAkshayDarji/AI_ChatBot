@@ -63,8 +63,9 @@ class ApiClient {
   }
 
   // Chat endpoints
-  async startChat(language: string): Promise<ChatStartResponse> { ... }
+  async startChat(language: string, channel: string = "web"): Promise<ChatStartResponse> { ... }
   async sendMessage(sessionId: string, message: string, language: string): Promise<ChatMessageResponse> { ... }
+  async streamMessage(sessionId: string, message: string, language: string): AsyncGenerator<StreamChunk> { ... }
   async submitFeedback(messageId: string, rating: number, comment?: string): Promise<void> { ... }
 
   // Lead endpoints
@@ -126,8 +127,32 @@ export interface TokenResponse {
   token_type: string;
 }
 
-export interface ChatStartResponse { ... }
-export interface ChatMessageResponse { ... }
+export interface ChatStartResponse { 
+  session_id: string; 
+  message: string; 
+  quick_replies: string[]; 
+}
+export interface ChatMessageResponse { 
+  message_id: string; 
+  conversation_id: string; 
+  content: string; 
+  intent: string | null; 
+  sources: SourceReference[]; 
+  handoff: HandoffInfo | null; 
+  lead_capture_suggested: boolean; 
+  suggested_replies: string[]; 
+}
+export interface StreamChunk {
+  event: "chunk" | "done" | "error";
+  data: {
+    content?: string;
+    message_id?: string;
+    conversation_id?: string;
+    sources?: SourceReference[];
+    suggested_replies?: string[];
+    error?: string;
+  };
+}
 export interface LeadCreateRequest { ... }
 export interface LeadResponse { ... }
 export interface KnowledgeDocument { ... }
@@ -142,6 +167,8 @@ export interface AnalyticsOverview { ... }
 - Handle 401 on admin routes → attempt refresh (`POST /admin/auth/refresh`), then redirect to login if refresh fails
 - Handle network errors gracefully
 - TypeScript strict types for all responses
+- Streaming uses `EventSource` or `fetch` with `ReadableStream` — no external SSE library needed
+- Handle rate limit headers (`X-RateLimit-Remaining`, `X-RateLimit-Reset`) from responses
 
 **Verification:**
 - TypeScript compiles without errors
@@ -181,7 +208,8 @@ Features:
 - Welcome message on open
 - Message list with auto-scroll to bottom
 - Input bar with send button
-- Quick reply buttons
+- Quick reply buttons (static from /chat/start AND dynamic suggested_replies from AI response)
+- Streaming response display (tokens appear word-by-word via SSE)
 - Loading indicator during AI response
 - Language selector in header
 - Close/minimize button
@@ -219,7 +247,9 @@ interface QuickRepliesProps {
 
 Features:
 - Horizontal scrollable pill buttons
-- Configurable options from API response
+- Static options from `/chat/start` response
+- Dynamic suggestions from `suggested_replies` in each AI response (replaces static options when present)
+- Selecting a quick reply sends it as a message
 
 **InputBar.tsx:**
 
@@ -586,7 +616,9 @@ apps/web/app/admin/settings/page.tsx
 - [ ] Chat widget renders on main page
 - [ ] Chat bubble opens chat panel
 - [ ] Can send a message and receive AI response
-- [ ] Quick replies work
+- [ ] Streaming responses display word-by-word
+- [ ] Static quick replies work (from /chat/start)
+- [ ] Dynamic suggested replies replace static options after AI response
 - [ ] Language selector switches languages
 - [ ] Lead capture form validates and submits
 - [ ] Handoff card shows with contact info
@@ -602,6 +634,7 @@ apps/web/app/admin/settings/page.tsx
 - [ ] Admin settings page shows current settings
 - [ ] All admin pages require authentication
 - [ ] Unauthorized users redirected to login
+- [ ] Channel field ("web") passed to /chat/start
 
 ### Manual Cross-Browser Test
 - [ ] Chrome (latest)

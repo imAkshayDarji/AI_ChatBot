@@ -1622,6 +1622,8 @@ lead linked to conversation
 admin sees lead
 ```
 
+> **Scope note (Week 4, 2026-05-13):** Public **`POST /api/v1/leads`**, lead service, extraction, and conversation linking are implemented. **Admin lead list** remains part of **Phase 12** (admin APIs) / **Week 5** unless already present elsewhere.
+
 ---
 
 ## Phase 12 — Admin APIs
@@ -2815,6 +2817,8 @@ Ask for tests immediately after each service.
 
 ## Week 4 — Chat, Leads, Analytics
 
+**Status:** COMPLETED (2026-05-13) — backend orchestration, chat + leads APIs, analytics wiring, migration `003_week4_feedback_rating_leads_context`.
+
 Goal:
 
 ```text
@@ -2919,21 +2923,21 @@ Manually verify secrets and production settings.
 [x] Build embeddings
 [x] Build retrieval
 [x] Build AI provider abstraction
-[ ] Build prompt builder
-[ ] Build safety guardrails
-[ ] Build chat orchestrator
-[ ] Build chat APIs
-[ ] Build lead capture
-[ ] Build analytics events
+[x] Build prompt builder
+[x] Build safety guardrails
+[x] Build chat orchestrator
+[x] Build chat APIs
+[x] Build lead capture
+[x] Build analytics events
 [ ] Build admin APIs
 [ ] Build chat widget
 [ ] Build admin dashboard
-[ ] Add tests
+[x] Add tests
 [ ] Deploy backend to Railway
 [ ] Deploy frontend to Vercel
 [ ] Configure production env
-[ ] Add logging
-[ ] Add rate limiting
+[x] Add logging
+[x] Add rate limiting
 [ ] Add privacy/consent text
 [ ] Run AI evaluation set
 [ ] Launch MVP
@@ -3052,7 +3056,7 @@ After completing ALL tasks in a week:
 | Week 1 | 2026-05-13 | 2026-05-13 | COMPLETED | Architecture, Planning, Foundation |
 | Week 2 | 2026-05-13 | 2026-05-13 | COMPLETED | Database, Auth, Knowledge Management |
 | Week 3 | 2026-05-13 | 2026-05-13 | COMPLETED | Phases 6–8 delivered: ingestion, retrieval, AI provider |
-| Week 4 | — | — | NOT STARTED | Chat Orchestration, Leads, Analytics |
+| Week 4 | 2026-05-13 | 2026-05-13 | COMPLETED | Chat orchestration, APIs, leads, analytics, feedback 1–5 migration; see `docs/plans/week-4.md` |
 | Week 5 | — | — | NOT STARTED | Frontend Chat Widget and Admin Dashboard |
 | Week 6 | — | — | NOT STARTED | Deployment, Security, Production Launch |
 
@@ -3078,12 +3082,12 @@ After completing ALL tasks in a week:
 [x] Build embeddings
 [x] Build retrieval
 [x] Build AI provider abstraction
-[ ] Build prompt builder
-[ ] Build safety guardrails
-[ ] Build chat orchestrator
-[ ] Build chat APIs
-[ ] Build lead capture
-[ ] Build analytics events
+[x] Build prompt builder
+[x] Build safety guardrails
+[x] Build chat orchestrator
+[x] Build chat APIs
+[x] Build lead capture
+[x] Build analytics events
 [ ] Build admin APIs
 [ ] Build chat widget
 [ ] Build admin dashboard

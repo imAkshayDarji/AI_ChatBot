@@ -76,17 +76,21 @@ class RetrieverService:
         )
 
         rows = (
-            await self._db.execute(
-                sql,
-                {
-                    "emb": emb,
-                    "lang": language,
-                    "has_stype": has_stype,
-                    "stype": stype,
-                    "lim_p": fetch_cap,
-                },
+            (
+                await self._db.execute(
+                    sql,
+                    {
+                        "emb": emb,
+                        "lang": language,
+                        "has_stype": has_stype,
+                        "stype": stype,
+                        "lim_p": fetch_cap,
+                    },
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
         results: list[RetrievalResult] = []
         for row in rows:

@@ -8,7 +8,9 @@
 
 ## Production note (Week 3 / database)
 
-Deploy only after **`alembic upgrade head`** has applied Week 3’s **`Vector(3072)`** embedding migration on production Postgres (`text-embedding-3-large`). A mismatch causes chunk writes to fail at runtime.
+Deploy only after **`alembic upgrade head`** has applied:
+- Week 3’s **`Vector(3072)`** embedding migration on production Postgres (`text-embedding-3-large`). A mismatch causes chunk writes to fail at runtime.
+- Week 4’s **`AIFeedback.rating`** constraint widening (1-2 to 1-5). Without this, feedback submissions with ratings 3-5 will fail.
 
 ---
 
@@ -109,7 +111,7 @@ apps/api/app/core/config.py
 - No wildcard origins in production
 - Allow: GET, POST, PATCH, DELETE
 - Allow headers: Content-Type, Authorization
-- Expose headers: Retry-After
+- Expose headers: Retry-After, X-RateLimit-Remaining, X-RateLimit-Reset
 - Credentials: true
 
 **Verification:**
@@ -467,6 +469,8 @@ NEXT_PUBLIC_STUDIO_NAME=Krystal Tattoo Studio
 | Admin leads | View leads | Lead list shown |
 | Admin chats | View chat history | Transcript shown |
 | Rate limiting | 21 messages in 1 min | 429 on 21st |
+| Rate limit headers | Check response headers | X-RateLimit-Remaining present |
+| Streaming chat | POST /chat/message/stream | SSE chunks received |
 | CORS | Request from unknown origin | Blocked |
 | Mobile | Full chat flow on phone | Works |
 | Slow network | Chat on 3G simulation | Works (maybe slow) |
@@ -627,15 +631,15 @@ git push origin main
 
 These are documented for future reference. Do NOT implement now.
 
-1. Streaming chat responses (SSE)
+1. ~~Streaming chat responses (SSE)~~ — **Moved to Week 4 (CEO review decision)**
 2. Redis for caching and rate limiting
 3. Email notifications on new leads
 4. Conversation summaries for long chats
 5. Advanced analytics dashboard
 6. AI evaluation dashboard
 7. Booking provider integration
-8. WhatsApp integration
-9. Instagram DM integration
+8. WhatsApp integration (channel field already abstracted in Week 4)
+9. Instagram DM integration (channel field already abstracted in Week 4)
 10. CRM profiles
 11. Multi-studio support
 12. AI receptionist phone system

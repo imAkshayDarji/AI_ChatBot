@@ -43,6 +43,7 @@ class _StubEmbeddings:
 def _stub_embeddings() -> _StubEmbeddings:
     return _StubEmbeddings()
 
+
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://krystal:krystal_dev_password@localhost:5432/krystal_studio",

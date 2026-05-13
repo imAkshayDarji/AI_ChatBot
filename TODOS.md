@@ -73,3 +73,36 @@
 - **Priority:** P2
 - **Depends on:** Week 3 completion
 - **Added:** 2026-05-13 (CEO review of Week 3)
+
+## [P2] Add request_id (correlation ID) propagation through chat pipeline
+- **What:** Generate a UUID at the API layer, pass it through all service calls via Python context variable, include it in every structured log line.
+- **Why:** A single `handle_message` call touches 6+ services. Without correlation, debugging is grep-by-conversation-id and hoping.
+- **Pros:** Fast debugging. Structured observability. Standard practice.
+- **Cons:** Requires a context var pattern. All log calls need the field.
+- **Context:** Week 4 orchestrator wires 6+ services. No correlation ID = no debugging.
+- **Effort:** S (CC ~10 min)
+- **Priority:** P2
+- **Depends on:** Week 4 completion
+- **Added:** 2026-05-13 (CEO review of Week 4)
+
+## [P2] Add AI provider health check to /health endpoint
+- **What:** Lightweight OpenAI ping (1-token completion) on `/health`. Return `degraded` if AI unreachable but DB up.
+- **Why:** AI outages are the #1 failure mode. Current health check only verifies DB.
+- **Pros:** Early outage detection.
+- **Cons:** Adds latency. Cache for 30s.
+- **Context:** Week 4 chat depends entirely on OpenAI. Health endpoint is blind to AI outages.
+- **Effort:** S (CC ~10 min)
+- **Priority:** P2
+- **Depends on:** Week 4 completion
+- **Added:** 2026-05-13 (CEO review of Week 4)
+
+## [P2] Add response caching for FAQ queries
+- **What:** In-memory LRU cache for high-confidence FAQ intents. Keyed by intent+language. Invalidate on reindex.
+- **Why:** "Opening hours" asked 20+ times/day. Same answer every time. Saves ~40% AI API costs.
+- **Pros:** Lower costs. Faster responses.
+- **Cons:** Cache invalidation on reindex.
+- **Context:** Week 4 serves every message through AI. FAQ questions get identical answers.
+- **Effort:** M (CC ~20 min)
+- **Priority:** P2
+- **Depends on:** Week 4 completion
+- **Added:** 2026-05-13 (CEO review of Week 4)

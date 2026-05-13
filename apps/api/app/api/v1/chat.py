@@ -1,0 +1,138 @@
+"""Public conversational endpoints."""
+
+from __future__ import annotations
+
+import json
+import uuid
+
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+
+from app.api.deps import DBSessionDep, get_chat_orchestrator
+from app.core.chat_rate_limit import CHAT_FEEDBACK_LIMITER, split_chat_session_budget
+from app.core.config import get_settings
+from app.core.errors import ForbiddenError, RateLimitExceededError
+from app.db.models.conversation import Conversation
+from app.db.models.feedback import AIFeedback
+from app.db.models.message import Message
+from app.schemas.chat import (
+    ChatFeedbackRequest,
+    ChatMessageRequest,
+    ChatMessageResponse,
+    ChatStartRequest,
+    ChatStartResponse,
+)
+from app.services.analytics.tracker import AnalyticsTracker
+from app.services.chat.memory import MemoryService
+from app.services.chat.orchestrator import ChatOrchestrator
+
+router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+@router.post("/start", response_model=ChatStartResponse)
+async def chat_start(body: ChatStartRequest, db: DBSessionDep) -> ChatStartResponse:
+    settings = get_settings()
+    session_id_str = str(uuid.uuid4())
+
+    memory = MemoryService(ai_provider=None)
+    conv = await memory.get_or_create_conversation(db, session_id_str, body.language)
+
+    tracker = AnalyticsTracker()
+    await tracker.track_chat_started(db, conv.id, body.language, channel=body.channel)
+
+    welcome = (
+        f"Hey! Welcome to {settings.STUDIO_NAME}. "
+        "What would you like to know — tattoos, piercings, dreadlocks, or booking?"
+    )
+    quick = ["Tattoo pricing", "Piercing info", "Aftercare", "Book consultation"]
+    return ChatStartResponse(session_id=session_id_str, message=welcome, quick_replies=quick)
+
+
+@router.post("/message", response_model=ChatMessageResponse)
+async def chat_message(
+    body: ChatMessageRequest,
+    response: Response,
+    orchestrator: ChatOrchestrator = Depends(get_chat_orchestrator),
+) -> ChatMessageResponse:
+    rl = split_chat_session_budget(body.session_id)
+    if not rl.allowed:
+        raise RateLimitExceededError("Too many chat messages for this session.")
+    response.headers["X-RateLimit-Remaining"] = str(rl.remaining)
+    response.headers["X-RateLimit-Reset"] = str(rl.reset_epoch)
+
+    return await orchestrator.handle_message(body)
+
+
+@router.post("/message/stream")
+async def chat_message_stream(
+    body: ChatMessageRequest,
+    orchestrator: ChatOrchestrator = Depends(get_chat_orchestrator),
+) -> StreamingResponse:
+    rl = split_chat_session_budget(body.session_id)
+    if not rl.allowed:
+        raise RateLimitExceededError("Too many chat messages for this session.")
+
+    streaming_headers = {
+        "X-RateLimit-Remaining": str(rl.remaining),
+        "X-RateLimit-Reset": str(rl.reset_epoch),
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+    }
+
+    async def event_gen():
+        prepared = await orchestrator.prepare_turn(body)
+        if isinstance(prepared, ChatMessageResponse):
+            payload = {
+                "error": "conversation_short_circuit",
+                "detail": prepared.model_dump(mode="json"),
+            }
+            yield f"event: error\ndata: {json.dumps(jsonable_encoder(payload))}\n\n"
+            return
+
+        accumulated: list[str] = []
+        async for token in orchestrator.stream_model_tokens(prepared):
+            accumulated.append(token)
+            chunk = {"content": token}
+            yield f"event: chunk\ndata: {json.dumps(jsonable_encoder(chunk))}\n\n"
+
+        full_text = "".join(accumulated)
+        finished = await orchestrator.finalize_streamed_turn(body, prepared, full_text)
+        done_payload = json.dumps(jsonable_encoder(finished.model_dump(mode="json")))
+        yield f"event: done\ndata: {done_payload}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers=streaming_headers)
+
+
+@router.post("/feedback", status_code=status.HTTP_201_CREATED)
+async def chat_feedback(
+    body: ChatFeedbackRequest,
+    db: DBSessionDep,
+    response: Response,
+) -> None:
+    rl = CHAT_FEEDBACK_LIMITER.check(body.session_id)
+    if not rl.allowed:
+        raise RateLimitExceededError("Too many feedback submissions for this session.")
+    response.headers["X-RateLimit-Remaining"] = str(rl.remaining)
+    response.headers["X-RateLimit-Reset"] = str(rl.reset_epoch)
+
+    stmt = (
+        select(Message.id)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(
+            Message.id == body.message_id,
+            Conversation.session_id == body.session_id,
+        )
+        .limit(1)
+    )
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row is None:
+        raise ForbiddenError("Feedback is only allowed for messages in your current session.")
+
+    fb = AIFeedback(message_id=body.message_id, rating=body.rating, comment=body.comment)
+    db.add(fb)
+    await db.commit()
+
+
+__all__ = ["router"]

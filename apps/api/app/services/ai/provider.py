@@ -102,13 +102,28 @@ class OpenAIProvider:
         model: str | None = None,
         temperature: float = 0.7,
     ) -> AsyncIterator[str]:
-        full = await self.chat(
-            messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=1000,
-        )
-        yield full.content
+        use_model = model or self._default_model
+
+        async def iterate() -> AsyncIterator[str]:
+            stream = await self._client.chat.completions.create(
+                model=use_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=1000,
+                stream=True,
+            )
+            async for event in stream:
+                if not event.choices:
+                    continue
+                delta = event.choices[0].delta
+                if delta and delta.content:
+                    yield delta.content
+
+        try:
+            async for piece in iterate():
+                yield piece
+        except (RateLimitError, APIError, APITimeoutError) as exc:
+            raise _to_ai_error(exc) from exc
 
 
 async def _retry_chat(factory: Callable[[], Awaitable[AIResponse]]) -> AIResponse:

@@ -36,6 +36,7 @@ class Lead(Base):
     placement: Mapped[str | None] = mapped_column(Text, nullable=True)
     style_preference: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conversation_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
