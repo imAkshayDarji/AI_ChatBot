@@ -1,19 +1,143 @@
-from fastapi import FastAPI, Request
+"""Domain errors and FastAPI handlers. Routes raise domain errors; handlers map to HTTP."""
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 
+class DomainError(Exception):
+    """Base for application domain errors."""
+
+    detail: str
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
+class NotFoundError(DomainError):
+    pass
+
+
+class ConflictError(DomainError):
+    pass
+
+
+class ForbiddenError(DomainError):
+    pass
+
+
+class InvalidCredentialsError(DomainError):
+    pass
+
+
+class AccountInactiveError(DomainError):
+    pass
+
+
+class TokenExpiredError(DomainError):
+    pass
+
+
+class InvalidTokenError(DomainError):
+    pass
+
+
+class RateLimitExceededError(DomainError):
+    pass
+
+
+class KnowledgeStatusTransitionError(DomainError):
+    pass
+
+
+class ValidationDomainError(DomainError):
+    pass
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
-    async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
+    async def pydantic_exc(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=422,
             content={"detail": "Validation error", "errors": exc.errors()},
         )
 
-    @app.exception_handler(Exception)
-    async def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    @app.exception_handler(RateLimitExceededError)
+    async def rate_lim(request: Request, exc: RateLimitExceededError) -> JSONResponse:
         return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"},
+            status_code=429,
+            content={"detail": exc.detail},
+            headers={"Retry-After": str(_retry_after_seconds())},
         )
+
+    @app.exception_handler(NotFoundError)
+    async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": exc.detail})
+
+    @app.exception_handler(ConflictError)
+    async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": exc.detail})
+
+    @app.exception_handler(ForbiddenError)
+    async def forbidden_handler(request: Request, exc: ForbiddenError) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": exc.detail})
+
+    @app.exception_handler(
+        InvalidCredentialsError,
+    )
+    async def invalid_creds_handler(
+        request: Request,
+        exc: InvalidCredentialsError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=401, content={"detail": exc.detail})
+
+    @app.exception_handler(AccountInactiveError)
+    async def inactive_handler(request: Request, exc: AccountInactiveError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": exc.detail},
+        )
+
+    @app.exception_handler(TokenExpiredError)
+    async def token_expired_handler(request: Request, exc: TokenExpiredError) -> JSONResponse:
+        return JSONResponse(status_code=401, content={"detail": exc.detail})
+
+    @app.exception_handler(InvalidTokenError)
+    async def invalid_token_handler(request: Request, exc: InvalidTokenError) -> JSONResponse:
+        return JSONResponse(status_code=401, content={"detail": exc.detail})
+
+    @app.exception_handler(KnowledgeStatusTransitionError)
+    async def knowledge_transition_handler(
+        request: Request,
+        exc: KnowledgeStatusTransitionError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": exc.detail})
+
+    @app.exception_handler(ValidationDomainError)
+    async def validation_domain_handler(
+        request: Request,
+        exc: ValidationDomainError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": exc.detail})
+
+    @app.exception_handler(DomainError)
+    async def domain_fallback(request: Request, exc: DomainError) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": exc.detail})
+
+    @app.exception_handler(HTTPException)
+    async def http_exc_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        if isinstance(exc.detail, str):
+            content: dict[str, object] = {"detail": exc.detail}
+        elif isinstance(exc.detail, dict):
+            content = dict(exc.detail)
+        else:
+            content = {"detail": str(exc.detail)}
+        headers = dict(exc.headers) if exc.headers else None
+        return JSONResponse(status_code=exc.status_code, content=content, headers=headers)
+
+
+def _retry_after_seconds() -> int:
+    from app.core.config import get_settings
+
+    return max(1, get_settings().LOGIN_RATE_LIMIT_WINDOW_SECONDS)

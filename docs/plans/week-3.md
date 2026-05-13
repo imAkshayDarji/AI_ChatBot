@@ -364,7 +364,7 @@ class RetrievalResult:
     document_id: UUID
     chunk_text: str
     score: float
-    service_type: str | None
+    service_type: str  # always set on row (DB NOT NULL, default general)
     language: str
     source_title: str
 ```
@@ -382,6 +382,8 @@ WHERE kd.status = 'active'
 ORDER BY kc.embedding <=> :query_embedding
 LIMIT :top_k
 ```
+
+**Week 2 alignment:** `knowledge_chunks.service_type` is **NOT NULL** with default **`general`**. Passing `service_type=None` in Python means **omit** the filter (include all chunks). Passing `service_type="tattoo"` restricts to that value; chunks that stayed default `general` still match only when you filter by `general` explicitly.
 
 **Constraints:**
 - All retrieval MUST go through this service (PLAN.md Rule 1.5)

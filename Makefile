@@ -5,16 +5,19 @@ dev-api:
 	cd apps/api && uvicorn app.main:app --reload --port 8000
 
 test-api:
-	cd apps/api && python -m pytest app/tests/ -v
+	cd apps/api && PYTHONPATH=. SKIP_INTEGRATION=1 python -m pytest app/tests/ -v
+
+test-api-integration:
+	cd apps/api && PYTHONPATH=. python -m pytest app/tests/integration -v
 
 lint:
 	cd apps/api && python -m ruff check app/ && cd ../../apps/web && pnpm lint
 
 migrate:
-	cd apps/api && alembic upgrade head
+	cd apps/api && PYTHONPATH=. alembic upgrade head
 
 seed:
-	cd apps/api && python scripts/seed_admin.py
+	cd apps/api && PYTHONPATH=. python scripts/seed_admin.py
 
 # Frontend
 dev-web:

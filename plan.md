@@ -2899,21 +2899,21 @@ Manually verify secrets and production settings.
 # 22. Final Development Checklist
 
 ```text
-[ ] Read PLAN.md
-[ ] Create docs
-[ ] Create Cursor rules
-[ ] Create monorepo
-[ ] Setup FastAPI
-[ ] Setup Next.js
-[ ] Setup PostgreSQL
-[ ] Setup Alembic
-[ ] Create models
-[ ] Create migrations
-[ ] Seed admin
-[ ] Build health endpoint
-[ ] Build auth
-[ ] Build admin guards
-[ ] Build knowledge CRUD
+[x] Read PLAN.md
+[x] Create docs
+[x] Create Cursor rules
+[x] Create monorepo
+[x] Setup FastAPI
+[x] Setup Next.js
+[x] Setup PostgreSQL
+[x] Setup Alembic
+[x] Create models
+[x] Create migrations
+[x] Seed admin
+[x] Build health endpoint
+[x] Build auth
+[x] Build admin guards
+[x] Build knowledge CRUD
 [ ] Build chunking
 [ ] Build embeddings
 [ ] Build retrieval
@@ -3014,7 +3014,7 @@ Each week has a detailed plan file with tasks, tests, and verification:
 | Week | Plan File | Status |
 |---|---|---|
 | Week 1 | [docs/plans/week-1.md](docs/plans/week-1.md) — Architecture, Planning, Foundation | COMPLETED |
-| Week 2 | [docs/plans/week-2.md](docs/plans/week-2.md) — Database, Auth, Knowledge Management | NOT STARTED |
+| Week 2 | [docs/plans/week-2.md](docs/plans/week-2.md) — Database, Auth, Knowledge Management | COMPLETED |
 | Week 3 | [docs/plans/week-3.md](docs/plans/week-3.md) — RAG Pipeline and AI Core | NOT STARTED |
 | Week 4 | [docs/plans/week-4.md](docs/plans/week-4.md) — Chat Orchestration, Leads, Analytics | NOT STARTED |
 | Week 5 | [docs/plans/week-5.md](docs/plans/week-5.md) — Frontend Chat Widget and Admin Dashboard | NOT STARTED |
@@ -3048,7 +3048,7 @@ After completing ALL tasks in a week:
 | Week | Start Date | End Date | Status | Notes |
 |---|---|---|---|---|
 | Week 1 | 2026-05-13 | 2026-05-13 | COMPLETED | Architecture, Planning, Foundation |
-| Week 2 | — | — | NOT STARTED | Database, Auth, Knowledge Management |
+| Week 2 | 2026-05-13 | 2026-05-13 | COMPLETED | Database, Auth, Knowledge Management |
 | Week 3 | — | — | NOT STARTED | RAG Pipeline and AI Core |
 | Week 4 | — | — | NOT STARTED | Chat Orchestration, Leads, Analytics |
 | Week 5 | — | — | NOT STARTED | Frontend Chat Widget and Admin Dashboard |
@@ -3065,13 +3065,13 @@ After completing ALL tasks in a week:
 [x] Setup Next.js
 [x] Setup PostgreSQL
 [x] Setup Alembic
-[ ] Create models
-[ ] Create migrations
-[ ] Seed admin
-[ ] Build health endpoint
-[ ] Build auth
-[ ] Build admin guards
-[ ] Build knowledge CRUD
+[x] Create models
+[x] Create migrations
+[x] Seed admin
+[x] Build health endpoint
+[x] Build auth
+[x] Build admin guards
+[x] Build knowledge CRUD
 [ ] Build chunking
 [ ] Build embeddings
 [ ] Build retrieval
@@ -3085,12 +3085,12 @@ After completing ALL tasks in a week:
 [ ] Build admin APIs
 [ ] Build chat widget
 [ ] Build admin dashboard
-[ ] Add tests
+[x] Add tests
 [ ] Deploy backend to Railway
 [ ] Deploy frontend to Vercel
 [ ] Configure production env
-[ ] Add logging
-[ ] Add rate limiting
+[x] Add logging
+[x] Add rate limiting
 [ ] Add privacy/consent text
 [ ] Run AI evaluation set
 [ ] Launch MVP
