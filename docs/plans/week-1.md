@@ -1,7 +1,7 @@
 # Week 1 — Architecture, Planning, and Foundation
 
-> **Status:** NOT STARTED
-> **Dates:** Week 1
+> **Status:** COMPLETED
+> **Dates:** Week 1 (2026-05-13)
 > **Depends on:** None
 > **Blocks:** Week 2, Week 3, Week 4, Week 5, Week 6
 
@@ -28,14 +28,34 @@ Project structure is stable, Cursor rules are active, backend/frontend run local
 
 ---
 
-## Pre-Implementation Questions (ASK USER BEFORE STARTING)
+## Pre-Implementation Questions
 
-1. What is the studio's official phone number? (Used in handoff messages, .env.example)
-2. What is the studio's official Instagram URL? (Used in handoff messages, .env.example)
-3. What is the studio's website URL? (Used for CORS, frontend config)
-4. What is the studio's address/location? (Used in knowledge base, responses)
-5. What are the studio's opening hours? (Used in knowledge base, responses)
-6. Do you have a logo file you want to use in the chat widget?
+These questions help populate configuration values. If you don't have answers yet, defaults are provided so Week 1 is never blocked.
+
+| # | Question | Used In | Default |
+|---|----------|---------|---------|
+| 1 | Studio's official phone number? | .env.example, handoff messages | `+91-XXXX-XXXXXX` |
+| 2 | Studio's official Instagram URL? | .env.example, handoff messages | `#` |
+| 3 | Studio's website URL? | CORS, frontend config | `http://localhost:3000` |
+| 4 | Studio's address/location? | Knowledge base, responses | ` Ahmedabad, Gujarat` |
+| 5 | Studio's opening hours? | Knowledge base, responses | `Mon-Sat 10am-8pm` |
+| 6 | Logo file for chat widget? | Chat widget branding | `none` (text-only header) |
+
+---
+
+## Execution Order
+
+**IMPORTANT:** Execute tasks in this order to prevent accidental staging of files:
+
+1. **Task 1.9** (.gitignore and .env.example) — create FIRST, before any other files
+2. **Task 1.1** (Documentation Foundation)
+3. **Task 1.2** (Cursor Rules)
+4. **Task 1.3** (Monorepo Structure)
+5. **Task 1.4** (FastAPI Backend Skeleton)
+6. **Task 1.5** (Next.js Frontend Skeleton)
+7. **Task 1.6** (Docker Compose)
+8. **Task 1.7** (Alembic Configuration)
+9. **Task 1.8** (Makefile)
 
 ---
 
@@ -234,11 +254,14 @@ apps/api/Dockerfile
 
 **Requirements:**
 - FastAPI app with CORS middleware (configurable origins)
-- `/api/v1/health` endpoint returns `{"status": "ok", "version": "1.0.0"}`
+- `/api/v1/health` endpoint returns `{"status": "ok", "version": "1.0.0", "db": "not_configured"}`
 - Pydantic v2 settings class in `config.py` reading from env vars
-- Global exception handlers in `errors.py`
+- Global exception handlers in `errors.py` — include handlers for `ValidationError` (422) and generic `Exception` (500)
 - Structured logging setup in `logging.py`
-- `requirements.txt` with pinned versions: fastapi, uvicorn, sqlalchemy, asyncpg, alembic, pydantic, pydantic-settings, python-jose, passlib, httpx, openai, pgvector
+- `requirements.txt` with pinned versions for all packages:
+  - `fastapi`, `uvicorn[standard]`, `sqlalchemy[asyncio]`, `asyncpg`, `alembic`, `pydantic`, `pydantic-settings`
+  - `python-jose[cryptography]`, `passlib[bcrypt]`, `httpx`, `openai`, `pgvector`
+  - `pytest`, `pytest-asyncio`, `httpx` (test dependencies)
 - Dockerfile using python:3.12-slim
 
 **Constraints:**
@@ -252,16 +275,40 @@ apps/api/Dockerfile
 ```bash
 cd apps/api && pip install -r requirements.txt
 uvicorn app.main:app --reload
-curl http://localhost:8000/api/v1/health  # returns {"status": "ok", "version": "1.0.0"}
+curl http://localhost:8000/api/v1/health  # returns {"status": "ok", "version": "1.0.0", "db": "not_configured"}
 ```
 
 **Tests:**
+
 ```python
+# apps/api/app/tests/conftest.py
+import pytest
+from httpx import AsyncClient, ASGITransport
+from app.main import app
+
+@pytest.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
 # apps/api/app/tests/unit/test_health.py
-def test_health_endpoint_returns_ok(client):
-    response = client.get("/api/v1/health")
+async def test_health_endpoint_returns_ok(client):
+    response = await client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["version"] == "1.0.0"
+    assert "db" in data
+    assert data["db"] == "not_configured"
+
+# apps/api/app/tests/unit/test_config.py
+from app.core.config import get_settings
+
+def test_settings_loads_from_env():
+    settings = get_settings()
+    assert settings.STUDIO_NAME == "Krystal Tattoo Studio"
+    assert settings.ENVIRONMENT in ("development", "production")
 ```
 
 ---
@@ -300,6 +347,13 @@ apps/web/app/admin/ (admin route group placeholder)
 - `NEXT_PUBLIC_API_URL=http://localhost:8000` in `.env.example`
 - `NEXT_PUBLIC_STUDIO_NAME="Krystal Tattoo Studio"` in `.env.example`
 
+**Tailwind v4 verification step:**
+After scaffold, verify Tailwind v4 is active by checking:
+1. `apps/web/app/globals.css` uses `@import "tailwindcss"` (not `@tailwind base/components/utilities`)
+2. No `tailwind.config.js` or `tailwind.config.ts` exists (v4 uses CSS-first config via `@theme`)
+3. Run `cd apps/web && pnpm dev` and confirm a `<div class="bg-blue-500 text-white p-4">` renders correctly
+If `create-next-app` installed Tailwind v3, upgrade: `pnpm add -D tailwindcss@next @tailwindcss/postcss@next`
+
 **Constraints:**
 - Do NOT build chat widget yet
 - Do NOT build admin pages yet
@@ -327,7 +381,6 @@ infra/docker/docker-compose.yml
 **docker-compose.yml contents:**
 
 ```yaml
-version: "3.9"
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -521,7 +574,7 @@ NEXT_PUBLIC_STUDIO_NAME=Krystal Tattoo Studio
 - [ ] All Cursor rules created in `.cursor/rules/`
 - [ ] `make docker-up` starts PostgreSQL with pgvector
 - [ ] `make dev-api` starts FastAPI on port 8000
-- [ ] `curl http://localhost:8000/api/v1/health` returns `{"status": "ok"}`
+- [ ] `curl http://localhost:8000/api/v1/health` returns `{"status": "ok", "version": "1.0.0", "db": "not_configured"}`
 - [ ] `make dev-web` starts Next.js on port 3000
 - [ ] `http://localhost:3000` shows "Krystal Tattoo Studio"
 - [ ] `cd apps/api && alembic current` runs without error

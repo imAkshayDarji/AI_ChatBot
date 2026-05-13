@@ -1,0 +1,13 @@
+Backend uses FastAPI, SQLAlchemy async, Alembic, Pydantic, and PostgreSQL.
+
+Routes go in apps/api/app/api/v1.
+Business logic goes in apps/api/app/services.
+Database models go in apps/api/app/db/models.
+Schemas go in apps/api/app/schemas.
+Configuration goes in apps/api/app/core/config.py.
+
+Do not call AI providers directly from route handlers.
+Do not put large business workflows inside route handlers.
+Use dependency injection for DB sessions and auth.
+Use Pydantic request/response schemas.
+Admin routes must be protected.

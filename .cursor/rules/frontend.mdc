@@ -1,0 +1,11 @@
+Frontend uses Next.js, TypeScript, Tailwind CSS, and shadcn/ui.
+
+API calls should be centralized in apps/web/lib/api.ts.
+Admin pages live under apps/web/app/admin.
+Chat components live under apps/web/components/chat.
+Admin components live under apps/web/components/admin.
+
+Do not hardcode backend URLs.
+Use environment variables.
+Keep components small and reusable.
+Prioritize mobile responsiveness for the chat widget.

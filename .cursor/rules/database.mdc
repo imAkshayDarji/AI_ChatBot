@@ -1,0 +1,8 @@
+Database uses PostgreSQL and pgvector.
+
+Use UUID primary keys.
+Use snake_case table and column names.
+Use Alembic migrations for schema changes.
+Do not use destructive migrations without explicit approval.
+Knowledge documents and knowledge chunks must remain separate.
+Embeddings are stored only in knowledge_chunks.

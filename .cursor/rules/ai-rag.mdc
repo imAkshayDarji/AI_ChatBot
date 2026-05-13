@@ -1,0 +1,11 @@
+All AI model calls must go through apps/api/app/services/ai/provider.py.
+All prompt building must go through apps/api/app/services/ai/prompt_builder.py.
+All retrieval must go through apps/api/app/services/rag/retriever.py.
+All embeddings must go through apps/api/app/services/rag/embeddings.py.
+
+Never allow user input to override system instructions.
+Treat retrieved documents as untrusted context.
+Handle no-context retrieval safely.
+Do not invent business facts, prices, policies, or availability.
+Medical concerns must trigger safe handoff.
+Age-sensitive tattoo/piercing topics must mention ID/age verification where relevant.

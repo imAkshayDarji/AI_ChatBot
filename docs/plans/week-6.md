@@ -393,7 +393,7 @@ python scripts/seed_knowledge.py
 **Verification:**
 ```bash
 curl https://your-railway-app.up.railway.app/api/v1/health
-# Returns {"status": "ok", "version": "1.0.0"}
+# Returns {"status": "ok", "version": "1.0.0", "db": "connected"}
 ```
 
 ---

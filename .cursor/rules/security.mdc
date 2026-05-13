@@ -1,0 +1,8 @@
+Never log API keys, JWTs, passwords, or full personal data.
+Admin endpoints require authentication.
+Check role-based permissions.
+Validate inputs with Pydantic.
+Use rate limiting on public chat and login.
+Do not expose stack traces in production.
+Do not generate destructive database commands unless explicitly requested.
+Public chat must never access admin-only data.
