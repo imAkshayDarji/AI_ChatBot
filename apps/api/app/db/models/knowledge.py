@@ -93,7 +93,7 @@ class KnowledgeChunk(Base):
         server_default=text("'en'"),
         index=True,
     )
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(3072), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

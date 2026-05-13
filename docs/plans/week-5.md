@@ -6,6 +6,13 @@
 
 ---
 
+## Contracts from Week 3 (frontend / API client)
+
+- **Admin `POST …/admin/knowledge/{id}/reindex`** (wired in Week 3): MVP is **synchronous** — backend returns **`200 OK`** with a JSON body including **`chunk_count`** (not `202`). The web client must not assume async job polling.
+- **Inspecting chunks** for debugging (**`GET …/chunks`**) is **out of MVP** — see **`TODOS.md`** ([P2] admin chunk inspection). Until then rely on DB or future endpoint.
+
+---
+
 ## Goal
 
 Usable web MVP: customer-facing chat widget and admin dashboard. Both fully functional, mobile responsive, and connected to the backend.
@@ -73,7 +80,7 @@ class ApiClient {
   async createKnowledge(data: KnowledgeCreateRequest): Promise<KnowledgeDocument> { ... }
   async updateKnowledge(id: string, data: Partial<KnowledgeCreateRequest>): Promise<KnowledgeDocument> { ... }
   async deleteKnowledge(id: string): Promise<void> { ... }
-  async reindexKnowledge(id: string): Promise<void> { ... }
+  async reindexKnowledge(id: string): Promise<{ message: string; document_id: string; chunk_count: number }> { ... }
 
   // Admin leads
   async listLeads(params?: ListParams): Promise<PaginatedResponse<LeadResponse>> { ... }
@@ -512,7 +519,7 @@ apps/web/components/admin/KnowledgeEditor.tsx
 - Can create new document
 - Can edit existing document
 - Can delete with confirmation
-- Can reindex document
+- Reindex calls succeed (**HTTP 200**); show confirmation using **`chunk_count`** when the API returns it
 - Status changes persist
 
 ---
@@ -590,7 +597,7 @@ apps/web/app/admin/settings/page.tsx
 - [ ] Admin can update lead status
 - [ ] Admin chat history shows transcripts
 - [ ] Admin knowledge editor can CRUD documents
-- [ ] Admin knowledge reindex works
+- [ ] Admin knowledge reindex works (expects **HTTP 200** + `chunk_count` from backend)
 - [ ] Admin analytics page shows metrics
 - [ ] Admin settings page shows current settings
 - [ ] All admin pages require authentication

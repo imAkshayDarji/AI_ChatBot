@@ -1,8 +1,12 @@
 """Auth and knowledge flows against PostgreSQL."""
 
+from uuid import UUID
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 
+from app.db.models.knowledge import KnowledgeChunk
 from app.db.models.user import User
 
 pytestmark = pytest.mark.integration
@@ -78,7 +82,11 @@ async def test_login_rate_limit(integration_client: AsyncClient, owner_user: Use
 
 
 @pytest.mark.asyncio
-async def test_knowledge_crud_and_status(integration_client: AsyncClient, owner_user: User) -> None:
+async def test_knowledge_crud_and_status(
+    integration_client: AsyncClient,
+    owner_user: User,
+    session_factory,
+) -> None:
     from app.core import rate_limit as rl
 
     rl._LOGIN_ATTEMPTS.clear()
@@ -97,7 +105,7 @@ async def test_knowledge_crud_and_status(integration_client: AsyncClient, owner_
             "title": "Policy",
             "source_type": "manual",
             "language": "en",
-            "content": "Studio policy text",
+            "content": "Studio policy text for indexing. " * 80,
             "status": "draft",
         },
     )
@@ -118,6 +126,13 @@ async def test_knowledge_crud_and_status(integration_client: AsyncClient, owner_
     )
     assert pub.status_code == 200
 
+    doc_uuid = UUID(doc_id)
+    async with session_factory() as session:
+        stmt = select(func.count()).select_from(KnowledgeChunk)
+        stmt = stmt.where(KnowledgeChunk.document_id == doc_uuid)
+        chunk_n = await session.scalar(stmt)
+    assert chunk_n is not None and int(chunk_n) >= 1
+
     listed = await integration_client.get("/api/v1/admin/knowledge?limit=200", headers=headers)
     assert listed.status_code == 200
     assert len(listed.json()) <= 100
@@ -126,4 +141,7 @@ async def test_knowledge_crud_and_status(integration_client: AsyncClient, owner_
         f"/api/v1/admin/knowledge/{doc_id}/reindex",
         headers=headers,
     )
-    assert rin.status_code == 202
+    assert rin.status_code == 200, rin.text
+    body = rin.json()
+    assert "chunk" in body["message"].lower()
+    assert body.get("chunk_count", 0) >= 1

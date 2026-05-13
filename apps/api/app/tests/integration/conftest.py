@@ -8,7 +8,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -16,12 +16,32 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from app.api import deps as api_deps
 from app.core.security import hash_password
 from app.db import models as _models  # noqa: F401
 from app.db.base import Base
 from app.db.models.user import User
 from app.db.session import get_db
 from app.main import app
+
+
+class _StubEmbeddings:
+    """Deterministic 3072-d vectors for CI (no OpenAI calls)."""
+
+    dimensions = 3072
+
+    async def embed_text(self, text: str) -> list[float]:
+        return [0.01] * self.dimensions
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        return [[0.01] * self.dimensions for _ in texts]
+
+    async def embed_query(self, query: str) -> list[float]:
+        return await self.embed_text(query)
+
+
+def _stub_embeddings() -> _StubEmbeddings:
+    return _StubEmbeddings()
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -47,6 +67,8 @@ async def _engine_and_session() -> AsyncGenerator:
     factory = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
 
     async with eng.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield eng, factory
@@ -89,6 +111,7 @@ async def integration_client(
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[api_deps.get_embedding_service] = _stub_embeddings
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
