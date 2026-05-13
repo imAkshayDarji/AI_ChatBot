@@ -51,7 +51,7 @@ export function LeadCaptureForm({ language, onSuccess }: LeadCaptureFormProps) {
       await api.submitLead(data);
       setSuccess(true);
       onSuccess();
-    } catch (err) {
+    } catch {
       setError("Failed to submit. Please try again.");
     } finally {
       setSubmitting(false);

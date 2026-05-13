@@ -23,7 +23,7 @@ export default function ChatsPage() {
   };
 
   useEffect(() => {
-    fetchConversations(page);
+    void fetchConversations(page);
   }, [page]);
 
   const openConversation = async (id: string) => {

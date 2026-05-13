@@ -32,7 +32,7 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    fetchLeads(page, statusFilter);
+    void fetchLeads(page, statusFilter);
   }, [page, statusFilter]);
 
   const handleStatusChange = async (leadId: string, newStatus: string) => {

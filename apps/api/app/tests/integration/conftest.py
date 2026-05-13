@@ -89,6 +89,10 @@ async def session_factory(_engine_and_session):
 
 @pytest_asyncio.fixture(autouse=True)
 async def _truncate(_engine_and_session) -> AsyncGenerator[None, None]:
+    from app.core.rate_limit import _LOGIN_ATTEMPTS
+
+    _LOGIN_ATTEMPTS.clear()
+
     _eng, factory = _engine_and_session
     async with factory() as session:
         for tbl in reversed(Base.metadata.sorted_tables):

@@ -29,7 +29,7 @@ export default function KnowledgePage() {
   };
 
   useEffect(() => {
-    fetchDocs();
+    void fetchDocs();
   }, []);
 
   const handleCreate = async () => {

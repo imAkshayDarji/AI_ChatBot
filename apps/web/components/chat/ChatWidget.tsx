@@ -68,11 +68,11 @@ export function ChatWidget() {
   }, []);
 
   useEffect(() => {
-    if (open && !sessionId) {
-      const savedLang = localStorage.getItem("krystal_language") || "en";
+    const savedLang = localStorage.getItem("krystal_language") || "en";
+    void Promise.resolve().then(() => {
       setLanguage(savedLang);
       startChat(savedLang);
-    }
+    });
   }, [open, sessionId, startChat]);
 
   const handleLanguageChange = useCallback(

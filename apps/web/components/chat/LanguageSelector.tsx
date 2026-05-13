@@ -12,8 +12,6 @@ const LANGUAGES = [
 ] as const;
 
 export function LanguageSelector({ language, onChange }: LanguageSelectorProps) {
-  const current = LANGUAGES.find((l) => l.code === language) ?? LANGUAGES[0];
-
   return (
     <div className="relative">
       <select

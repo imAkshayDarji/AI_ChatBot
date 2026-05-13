@@ -20,10 +20,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    if (!isAuthenticated() && pathname !== "/admin/login") {
-      router.push("/admin/login");
-    }
+    void Promise.resolve().then(() => {
+      setMounted(true);
+      if (!isAuthenticated() && pathname !== "/admin/login") {
+        router.push("/admin/login");
+      }
+    });
   }, [router, pathname]);
 
   if (!mounted) return null;
