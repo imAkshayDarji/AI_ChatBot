@@ -26,15 +26,16 @@ Public MVP ready. Backend deployed to Railway, frontend deployed to Vercel, prod
 
 ### Task 6.1 — Rate Limiting
 
-**What:** Add rate limiting to public endpoints.
+**What:** Add rate limiting to **public** chat and lead endpoints.
+
+**Week 2 prerequisite:** `POST /admin/auth/login` rate limiting (in-memory, 5/min per IP) lives in Week 2 (`apps/api/app/core/rate_limit.py` or equivalent). Reuse or extend that module here—do not duplicate conflicting logic.
 
 **Files to create/modify:**
 
 ```
-apps/api/app/core/rate_limit.py
+apps/api/app/core/rate_limit.py  (extend shared helpers if needed)
 apps/api/app/api/v1/chat.py  (add rate limit)
 apps/api/app/api/v1/leads.py  (add rate limit)
-apps/api/app/api/v1/admin_auth.py  (add rate limit)
 ```
 
 **Rate limits:**
@@ -45,7 +46,7 @@ apps/api/app/api/v1/admin_auth.py  (add rate limit)
 | POST /chat/start | 5 requests | per session per minute |
 | POST /chat/feedback | 10 requests | per session per minute |
 | POST /leads | 3 requests | per IP per minute |
-| POST /admin/auth/login | 5 requests | per IP per minute |
+| POST /admin/auth/login | *(Week 2)* | 5/min per IP — verify still enforced |
 
 **Implementation:**
 - Use an in-memory dict for MVP (no Redis)
@@ -505,76 +506,16 @@ ls -la backups/
 
 ### Task 6.11 — GitHub Actions CI
 
-**What:** Set up CI pipeline.
+**What:** **Baseline CI is Week 2 Task 2.9** (`.github/workflows/ci.yml` on push/PR to `main`). This task is **verification + extension only**:
 
-**Files to create:**
+1. Confirm the workflow still matches repo reality (dependency paths: `requirements.txt` vs `pyproject.toml`, pnpm setup—prefer corepack over `npm install -g pnpm` per project norms).
+2. Add any **production-launch** gates you deferred (e.g. stricter env in CI, smoke step)—optional.
 
-```
-.github/workflows/ci.yml
-```
-
-**Workflow:**
-
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install dependencies
-        run: |
-          cd apps/api
-          pip install -r requirements.txt
-      - name: Lint
-        run: |
-          cd apps/api
-          python -m ruff check app/
-      - name: Test
-        run: |
-          cd apps/api
-          python -m pytest app/tests/unit/ app/tests/integration/ -v
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install pnpm
-        run: npm install -g pnpm
-      - name: Install dependencies
-        run: |
-          cd apps/web
-          pnpm install
-      - name: Lint
-        run: |
-          cd apps/web
-          pnpm lint
-      - name: Type check
-        run: |
-          cd apps/web
-          pnpm tsc --noEmit
-      - name: Build
-        run: |
-          cd apps/web
-          pnpm build
-```
+**Do not** recreate a duplicate primary CI file unless Week 2 was skipped.
 
 **Verification:**
-- Push triggers CI run
-- Both backend and frontend jobs pass
+- Push to a branch / PR triggers CI; backend + frontend jobs green
+- Document any Week 6-only additions in README if behavior changed
 
 ---
 
@@ -628,7 +569,7 @@ README.md
 - [ ] All 15 smoke test scenarios pass
 
 ### CI/CD
-- [ ] GitHub Actions CI runs on push
+- [ ] GitHub Actions CI runs on push / PR (introduced Week 2 Task 2.9; verified here)
 - [ ] Backend lint + tests pass
 - [ ] Frontend lint + typecheck + build pass
 - [ ] Auto-deploy to Railway on main push
@@ -659,8 +600,8 @@ git add -A && git commit -m "feat(deploy): add Railway and Vercel deployment con
 # After Task 6.9-6.10
 git add -A && git commit -m "feat(deploy): add backup script and production smoke test guide"
 
-# After Task 6.11-6.12
-git add -A && git commit -m "feat(ci): add GitHub Actions CI pipeline and project README"
+# After Task 6.11-6.12 (CI verify Week 2; README may be primary commit body)
+git add -A && git commit -m "docs(ci): verify GitHub Actions workflow and complete README"
 
 git push origin main
 ```

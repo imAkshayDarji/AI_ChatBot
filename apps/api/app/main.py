@@ -12,6 +12,13 @@ from app.core.logging import setup_logging
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    settings = get_settings()
+    is_production = settings.ENVIRONMENT == "production"
+    placeholder = settings.JWT_SECRET.strip() == "change-me-in-production"
+    if is_production and placeholder:
+        raise RuntimeError(
+            "Refusing to start in production with default JWT_SECRET. Set a strong JWT_SECRET."
+        )
     yield
 
 

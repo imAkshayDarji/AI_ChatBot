@@ -63,8 +63,9 @@ class ApiClient {
   // Lead endpoints
   async submitLead(data: LeadCreateRequest): Promise<LeadResponse> { ... }
 
-  // Admin endpoints (with auth)
+  // Admin endpoints (with auth) — backend returns access + refresh (Week 2)
   async adminLogin(email: string, password: string): Promise<TokenResponse> { ... }
+  async adminRefresh(refreshToken: string): Promise<TokenResponse> { ... }
   async getMe(): Promise<UserResponse> { ... }
 
   // Admin knowledge
@@ -99,16 +100,25 @@ export const api = new ApiClient(API_URL);
 **auth.ts:**
 
 ```typescript
-// JWT token storage and management
-export function getToken(): string | null { ... }
-export function setToken(token: string): void { ... }
-export function removeToken(): void { ... }
+// Access + refresh token storage (Week 2: POST /admin/auth/login and /admin/auth/refresh)
+export function getAccessToken(): string | null { ... }
+export function setAccessToken(token: string): void { ... }
+export function getRefreshToken(): string | null { ... }
+export function setRefreshToken(token: string): void { ... }
+export function removeTokens(): void { ... }
 export function isAuthenticated(): boolean { ... }
+// On 401 from an admin call: try adminRefresh once with stored refresh, then redirect to login if it fails
 ```
 
 **types/api.ts:**
 
 ```typescript
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
 export interface ChatStartResponse { ... }
 export interface ChatMessageResponse { ... }
 export interface LeadCreateRequest { ... }
@@ -122,7 +132,7 @@ export interface AnalyticsOverview { ... }
 **Constraints:**
 - All API calls go through this single client
 - No hardcoded URLs — use `NEXT_PUBLIC_API_URL`
-- Handle 401 errors -> redirect to login
+- Handle 401 on admin routes → attempt refresh (`POST /admin/auth/refresh`), then redirect to login if refresh fails
 - Handle network errors gracefully
 - TypeScript strict types for all responses
 

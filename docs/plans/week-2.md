@@ -1,6 +1,6 @@
 # Week 2 — Database, Auth, and Knowledge Management
 
-> **Status:** NOT STARTED
+> **Status:** COMPLETED
 > **Depends on:** Week 1 completed
 > **Blocks:** Week 3, Week 4
 
@@ -8,16 +8,78 @@
 
 ## Goal
 
-Admin can log in, authenticate via JWT, and manage knowledge documents (CRUD). Database models and migrations are solid. All protected with role-based access.
+Admin can log in, authenticate via JWT (access + refresh), and manage knowledge documents (CRUD). Database models and migrations are solid: pgvector self-contained in migrations, CHECK constraints, indexes including HNSW on embeddings. All admin APIs protected with role-based access. CI runs on PR and main.
+
+---
+
+## Review alignment (2026-05-13 CEO review)
+
+This plan incorporates SELECTIVE EXPANSION decisions: refresh tokens, GitHub Actions CI (Week 2 scope), HNSW index on chunk embeddings, database CHECK constraints, `api_keys` and `audit_logs` tables, login rate limiting (in-memory), production JWT secret startup guard, password minimum length, pagination caps, knowledge status state machine, async/pytest-asyncio tests, `service_type` default `"general"`, response schemas with `model_config = ConfigDict(from_attributes=True)`, optional audit writes from admin mutations (minimal hooks), and feature-branch PR workflow (no direct push to `main`).
+
+Deferred to **TODOS.md**: Redis-backed distributed rate limiting (P2), password reset flow (P3).
 
 ---
 
 ## Pre-Implementation Questions (ASK USER BEFORE STARTING)
 
-1. What email and password do you want for the initial admin seed user? (Default: `admin@krystaltattoo.com` / auto-generated)
+1. What email and password do you want for the initial admin seed user? (Default: `admin@krystaltattoo.com` / auto-generated; seed passwords must meet minimum length below.)
 2. Do you want multiple roles (owner/admin/staff) from the start, or just admin for MVP?
 3. Should knowledge documents support multiple languages from the start? (Recommended: Yes)
 4. What is the maximum knowledge document size you expect? (Helps with chunking config)
+
+---
+
+## Cross-cutting requirements (all tasks)
+
+### Migrations
+
+- First Alembic revision that introduces vectors MUST include `CREATE EXTENSION IF NOT EXISTS vector` so migrations work on a fresh DB (e.g. Railway), not only via Docker `init.sql`.
+- Add PostgreSQL **CHECK** constraints matching enums/strings used in app code:
+  - `users.role` IN (`owner`, `admin`, `staff`)
+  - `knowledge_documents.status` IN (`draft`, `active`, `archived`)
+  - `leads.status` IN (`new`, `contacted`, `consultation_booked`, `converted`, `closed`)
+  - `conversations.status` IN (`active`, `ended`)
+  - `messages.role` IN (`user`, `assistant`, `system`)
+  - `ai_feedback.rating` BETWEEN 1 AND 5
+
+### Indexes
+
+Add B-tree (or appropriate) indexes for filtered/joined columns, including at minimum: `users.email`, `refresh_tokens.token_hash`, `refresh_tokens.user_id`, `knowledge_documents.status`, `knowledge_chunks.document_id`, `knowledge_chunks.language`, `knowledge_chunks.service_type`, foreign keys on leads/conversations/messages/analytics/feedback as needed, plus:
+
+**HNSW on embeddings** (after chunks exist):
+
+```sql
+CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_embedding_hnsw
+ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);
+```
+
+### Exceptions and HTTP mapping
+
+Extend **`apps/api/app/core/errors.py`** with domain exceptions (e.g. `NotFoundError`, `ConflictError`, `InvalidCredentialsError`, `AccountInactiveError`, `TokenExpiredError`). Register handlers in **`apps/api/app/main.py`** mapping each to 401/403/404/409 as appropriate. Services raise domain exceptions; routes stay thin. Avoid bare `except Exception` swallowing.
+
+### Startup guard
+
+If `ENVIRONMENT=production` and `JWT_SECRET` equals the placeholder default (`change-me-in-production` from config), **fail fast at startup** with a clear error.
+
+### Auth security
+
+- **`LoginRequest.password`:** `Field(..., min_length=8)`.
+- **Login endpoint:** in-memory rate limit (e.g. 5 attempts per minute per IP); return **429** with `Retry-After` when exceeded. Week 6 upgrades to Redis-backed limiting where needed (see TODOS.md).
+
+### `require_role`
+
+Implement in **`apps/api/app/api/deps.py`**: factory returning a FastAPI dependency that runs **after** `get_current_user`. Wrong role → **403 Forbidden**. Missing/invalid token → **401** (handled by `get_current_user`). Inactive users rejected in `get_current_user` → **401** or **403** per your chosen convention (document it once and test).
+
+### Tests
+
+- Use **`pytest-asyncio`** and **`async def`** for any test that `await`s DB or async services.
+- Add integration test for **refresh token** expiry/revocation paths as applicable.
+- Add tests for **knowledge status transitions** (see Task 2.6).
+- Add optional smoke test or Makefile target: migration **upgrade → downgrade -1 → upgrade head**.
+
+### Git workflow
+
+Work on **`feature/week2-database-auth`** (or similar). Open a **PR** to `main`. Do **not** `git push origin main` until PR is merged.
 
 ---
 
@@ -25,7 +87,7 @@ Admin can log in, authenticate via JWT, and manage knowledge documents (CRUD). D
 
 ### Task 2.1 — User Model and Migration
 
-**What:** Create the `users` table with SQLAlchemy model and Alembic migration.
+**What:** Create the `users` table with SQLAlchemy model and Alembic migration (CHECK + indexes as above).
 
 **Files to create/modify:**
 
@@ -43,7 +105,7 @@ apps/api/app/schemas/__init__.py  (add export)
 | id | UUID | Primary key, auto-generated |
 | email | String(255) | Unique, not null, indexed |
 | password_hash | String(255) | Not null |
-| role | String(20) | Default: "admin", check: owner/admin/staff |
+| role | String(20) | Default: `admin`, CHECK: owner/admin/staff |
 | is_active | Boolean | Default: true |
 | created_at | DateTime(timezone=True) | Server default: now() |
 | updated_at | DateTime(timezone=True) | On update: now() |
@@ -53,13 +115,19 @@ apps/api/app/schemas/__init__.py  (add export)
 ```python
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=8)
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     email: str
     role: str
@@ -77,17 +145,7 @@ class UserResponse(BaseModel):
 **Tests:**
 
 ```python
-# apps/api/app/tests/unit/test_user_model.py
-def test_user_model_create(db_session):
-    user = User(email="test@test.com", password_hash="hash", role="admin")
-    db_session.add(user)
-    await db_session.commit()
-    assert user.id is not None
-    assert user.role == "admin"
-
-def test_user_email_unique(db_session):
-    # creating two users with same email should fail
-    ...
+# apps/api/app/tests/unit/test_user_model.py — use @pytest.mark.asyncio and async def + await db_session.commit()
 ```
 
 **Verification:**
@@ -100,119 +158,67 @@ cd apps/api && alembic upgrade head
 
 ### Task 2.2 — Password Hashing and JWT Auth
 
-**What:** Implement password hashing and JWT token generation/validation.
+**What:** Implement password hashing, access JWT, refresh token persistence, validation helpers.
 
 **Files to create/modify:**
 
 ```
 apps/api/app/core/security.py  (update)
 apps/api/app/api/deps.py  (update)
+apps/api/app/db/models/refresh_token.py  (new — hashed refresh token storage)
 ```
 
 **Requirements:**
 - Use `passlib[bcrypt]` for password hashing
-- Use `python-jose` for JWT
-- `hash_password(plain: str) -> str`
-- `verify_password(plain: str, hashed: str) -> bool`
-- `create_access_token(data: dict, expires_delta: timedelta) -> str`
-- `get_current_user(token: str = Depends(oauth2_scheme), db = Depends(get_db)) -> User`
-- `require_role(*roles: str) -> Dependency` that checks `current_user.role in roles`
+- Use `python-jose` for JWT access tokens
+- `hash_password`, `verify_password`, `create_access_token`, `decode_access_token`
+- Refresh tokens: store **hash only** in DB (never raw token in logs); configurable expiry (env e.g. `REFRESH_TOKEN_EXPIRE_DAYS`)
+- `get_current_user` → loads user from access token subject
+- `require_role(*roles: str)` → dependency factory in `deps.py` as described above
 
 **Constraints:**
-- JWT secret from env var `JWT_SECRET`
-- Token expiry from env var `ACCESS_TOKEN_EXPIRE_MINUTES`
-- Never log tokens or passwords
+- JWT secret from `JWT_SECRET`; expiry from `ACCESS_TOKEN_EXPIRE_MINUTES`
+- Never log tokens, refresh tokens, or passwords
 
-**Tests:**
-
-```python
-# apps/api/app/tests/unit/test_security.py
-def test_hash_and_verify_password():
-    hashed = hash_password("test123")
-    assert verify_password("test123", hashed)
-    assert not verify_password("wrong", hashed)
-
-def test_create_and_decode_token():
-    token = create_access_token({"sub": "user_id"})
-    payload = decode_token(token)
-    assert payload["sub"] == "user_id"
-```
+**Tests:** unit tests for hash/verify, access encode/decode, refresh token create/validate (mock DB as needed).
 
 ---
 
 ### Task 2.3 — Auth Endpoints
 
-**What:** Create login endpoint and current-user endpoint.
+**What:** Login, refresh, and current-user endpoints with login rate limit.
 
 **Files to create/modify:**
 
 ```
 apps/api/app/api/v1/admin_auth.py
 apps/api/app/api/v1/router.py  (register auth routes)
+apps/api/app/core/rate_limit.py  (in-memory limiter for POST .../login — or minimal inline with tests)
 ```
 
 **Endpoints:**
 
 ```
-POST /api/v1/admin/auth/login   -> TokenResponse
-GET  /api/v1/admin/me           -> UserResponse (protected)
+POST /api/v1/admin/auth/login    -> TokenResponse (access + refresh)
+POST /api/v1/admin/auth/refresh  -> TokenResponse (rotate refresh token — issue new refresh + access)
+GET  /api/v1/admin/me            -> UserResponse (protected)
 ```
 
-**Flow for POST /login:**
-1. Validate email/password via schema
-2. Look up user by email
-3. Verify password
-4. Check `is_active`
-5. Create JWT
-6. Return token
+**Flow for POST /login:** validate → lookup user → verify password → check `is_active` → issue access JWT → create refresh token row (hash) → return both.
 
-**Flow for GET /me:**
-1. Extract token from Authorization header
-2. Validate token via `get_current_user` dependency
-3. Return user data
+**Flow for POST /refresh:** validate body → lookup refresh by hash → check expiry → check user still active → rotate refresh (invalidate old or replace — pick one strategy and test).
 
-**Tests:**
+**Flow for GET /me:** Bearer access token → `get_current_user` → `UserResponse`.
 
-```python
-# apps/api/app/tests/integration/test_auth.py
-def test_login_success(client, admin_user):
-    response = client.post("/api/v1/admin/auth/login", json={
-        "email": "admin@krystaltattoo.com",
-        "password": "test_password"
-    })
-    assert response.status_code == 200
-    assert "access_token" in response.json()
-
-def test_login_wrong_password(client, admin_user):
-    response = client.post("/api/v1/admin/auth/login", json={
-        "email": "admin@krystaltattoo.com",
-        "password": "wrong"
-    })
-    assert response.status_code == 401
-
-def test_me_with_valid_token(client, admin_token):
-    response = client.get("/api/v1/admin/me", headers={
-        "Authorization": f"Bearer {admin_token}"
-    })
-    assert response.status_code == 200
-    assert response.json()["email"] == "admin@krystaltattoo.com"
-
-def test_me_without_token(client):
-    response = client.get("/api/v1/admin/me")
-    assert response.status_code == 401
-
-def test_me_role_check(client, staff_token):
-    # If staff tries admin-only endpoint, should get 403
-    ...
-```
+**Tests:** integration tests for login success/failure, refresh success/expired, GET `/me` 401 without token, rate limit 429 on repeated login failures.
 
 ---
 
 ### Task 2.4 — Seed Admin Script
 
-**What:** Create script to seed initial admin user.
+**What:** Script to seed initial admin user (password must satisfy `min_length=8`).
 
-**Files to create:**
+**Files:**
 
 ```
 scripts/seed_admin.py
@@ -220,206 +226,81 @@ scripts/seed_admin.py
 
 **Requirements:**
 - Reads `DATABASE_URL` from env
-- Creates admin user if not exists
-- Email: from env `ADMIN_EMAIL` or default `admin@krystaltattoo.com`
-- Password: from env `ADMIN_PASSWORD` or auto-generate and print
-- Role: "owner"
-- Idempotent (safe to run multiple times)
-
-**Verification:**
-```bash
-cd apps/api && python ../../scripts/seed_admin.py
-# Should print: "Admin user created: admin@krystaltattoo.com with password: xxxxx"
-# Running again should print: "Admin user already exists"
-```
+- Creates owner user if not exists
+- Email: `ADMIN_EMAIL` or default `admin@krystaltattoo.com`
+- Password: `ADMIN_PASSWORD` or auto-generate (≥8 chars) and print once
+- Idempotent
 
 ---
 
 ### Task 2.5 — Knowledge Document Model and Migration
 
-**What:** Create `knowledge_documents` and `knowledge_chunks` tables.
+**What:** Create `knowledge_documents` and `knowledge_chunks` with pgvector extension in migration chain, CHECK constraints, indexes, HNSW on `embedding`.
 
-**Files to create/modify:**
+**Files:**
 
 ```
 apps/api/app/db/models/knowledge.py
 apps/api/app/schemas/knowledge.py
 ```
 
-**knowledge_documents fields:**
+**knowledge_documents:** (unchanged intent; add CHECK on `status`)
+
+**knowledge_chunks:**
 
 | Column | Type | Notes |
 |---|---|---|
-| id | UUID | PK |
-| title | String(500) | Not null |
-| source_type | String(50) | "manual", "website", "faq", "pdf", "instagram" |
-| source_url | String(1000) | Nullable |
-| language | String(10) | Default: "en" |
-| content | Text | Not null |
-| status | String(20) | "draft", "active", "archived" — default: "draft" |
-| metadata_json | JSON | Nullable |
-| created_at | DateTime(tz=True) | |
-| updated_at | DateTime(tz=True) | |
+| service_type | String(50) | **NOT NULL**, default **`general`**; CHECK tattoo/piercing/dreadlock/general |
 
-**knowledge_chunks fields:**
-
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID | PK |
-| document_id | UUID | FK -> knowledge_documents.id, ON DELETE CASCADE |
-| chunk_text | Text | Not null |
-| chunk_index | Integer | Not null |
-| service_type | String(50) | Nullable — "tattoo", "piercing", "dreadlock", "general" |
-| language | String(10) | Default: "en" |
-| embedding | Vector(3072) | Nullable initially (filled by embedding service) |
-| created_at | DateTime(tz=True) | |
-
-**Note:** `Vector(3072)` matches text-embedding-3-large output dimension.
+**Schemas:** `KnowledgeDocumentCreate`, `KnowledgeDocumentUpdate`, `KnowledgeDocumentResponse`, `KnowledgeChunkResponse` with **`model_config = ConfigDict(from_attributes=True)`**.
 
 **Steps:**
-1. Create models
-2. Generate migration
+1. Ensure extension migration step exists before `Vector` columns
+2. Create models + migration + HNSW index
 3. Apply migration
-4. Create schemas: `KnowledgeDocumentCreate`, `KnowledgeDocumentUpdate`, `KnowledgeDocumentResponse`, `KnowledgeChunkResponse`
-
-**Tests:**
-
-```python
-# apps/api/app/tests/unit/test_knowledge_model.py
-def test_create_knowledge_document(db_session):
-    doc = KnowledgeDocument(title="Tattoo Pricing", source_type="manual", content="...")
-    ...
-    assert doc.status == "draft"
-
-def test_document_chunk_relationship(db_session):
-    doc = KnowledgeDocument(...)
-    chunk = KnowledgeChunk(document_id=doc.id, chunk_text="...", chunk_index=0)
-    ...
-    assert chunk.document_id == doc.id
-```
-
-**Verification:**
-```bash
-cd apps/api && alembic upgrade head
-# psql: \dt should show knowledge_documents and knowledge_chunks
-```
 
 ---
 
 ### Task 2.6 — Knowledge Document CRUD Service
 
-**What:** Create service layer for knowledge document operations.
+**What:** Service layer with explicit **status transition** rules.
 
-**Files to create:**
+**Allowed transitions:**
+- `draft` → `active` (publish)
+- `draft` → `archived` — **reject** (must activate first)
+- `active` → `archived`
+- `archived` → `active` (unarchive)
 
-```
-apps/api/app/services/knowledge/service.py
-```
+Raise domain error on illegal transition. Implement in `update_document` or dedicated method.
 
-**Methods:**
+**Methods:** (same as before; enforce `list_documents` pagination — **defaults `skip=0`, `limit=20`, clamp `limit` to max `100`** at service or route layer.)
 
-```python
-async def create_document(db: AsyncSession, data: KnowledgeDocumentCreate) -> KnowledgeDocument
-async def get_document(db: AsyncSession, document_id: UUID) -> KnowledgeDocument | None
-async def list_documents(db: AsyncSession, skip: int, limit: int, status: str | None) -> list[KnowledgeDocument]
-async def update_document(db: AsyncSession, document_id: UUID, data: KnowledgeDocumentUpdate) -> KnowledgeDocument
-async def delete_document(db: AsyncSession, document_id: UUID) -> bool
-async def count_documents(db: AsyncSession, status: str | None) -> int
-```
-
-**Constraints:**
-- Business logic only, no HTTP concerns
-- Use async SQLAlchemy
-- Return domain models, not Pydantic schemas
-- Raise specific exceptions (NotFound, Conflict)
-
-**Tests:**
-
-```python
-# apps/api/app/tests/unit/test_knowledge_service.py
-def test_create_document(db_session):
-    doc = await create_document(db_session, KnowledgeDocumentCreate(
-        title="Test", source_type="manual", content="Hello world"
-    ))
-    assert doc.id is not None
-    assert doc.status == "draft"
-
-def test_list_documents_with_status_filter(db_session):
-    ...
-```
+**Tests:** async tests for valid/invalid transitions.
 
 ---
 
 ### Task 2.7 — Knowledge Admin API Endpoints
 
-**What:** Create admin-only CRUD endpoints for knowledge documents.
+**What:** CRUD + placeholder reindex; document query params **`skip`**, **`limit`** (max 100).
 
-**Files to create/modify:**
+**Pagination:** `GET /api/v1/admin/knowledge?skip=0&limit=20&status=...`
 
-```
-apps/api/app/api/v1/admin_knowledge.py
-apps/api/app/api/v1/router.py  (register knowledge routes)
-```
+**Optional:** after create/update/delete/reindex, append **`audit_logs`** row (user_id, action, entity_type, entity_id, changes_json) — keep handler thin; call small audit helper.
 
-**Endpoints:**
-
-```
-GET    /api/v1/admin/knowledge                     -> PaginatedResponse[KnowledgeDocumentResponse]
-POST   /api/v1/admin/knowledge                     -> KnowledgeDocumentResponse
-GET    /api/v1/admin/knowledge/{document_id}       -> KnowledgeDocumentResponse
-PATCH  /api/v1/admin/knowledge/{document_id}       -> KnowledgeDocumentResponse
-DELETE /api/v1/admin/knowledge/{document_id}       -> 204 No Content
-POST   /api/v1/admin/knowledge/{document_id}/reindex -> 202 Accepted (placeholder)
-```
-
-**All endpoints require:** `get_current_user` dependency (authenticated admin).
-
-**Reindex endpoint:** Returns 202 with `{"message": "Reindex queued"}` — actual implementation in Week 3.
-
-**Tests:**
-
-```python
-# apps/api/app/tests/integration/test_knowledge_api.py
-def test_admin_create_document(client, admin_token):
-    response = client.post("/api/v1/admin/knowledge",
-        headers=auth_header(admin_token),
-        json={"title": "Tattoo Pricing", "source_type": "manual", "content": "..."}
-    )
-    assert response.status_code == 201
-
-def test_admin_update_document(client, admin_token, sample_document):
-    response = client.patch(f"/api/v1/admin/knowledge/{sample_document.id}",
-        headers=auth_header(admin_token),
-        json={"content": "Updated content"}
-    )
-    assert response.status_code == 200
-
-def test_unauthenticated_create_rejected(client):
-    response = client.post("/api/v1/admin/knowledge", json={...})
-    assert response.status_code == 401
-
-def test_invalid_document_rejected(client, admin_token):
-    response = client.post("/api/v1/admin/knowledge",
-        headers=auth_header(admin_token),
-        json={"title": ""}  # missing required fields
-    )
-    assert response.status_code == 422
-
-def test_delete_document(client, admin_token, sample_document):
-    response = client.delete(f"/api/v1/admin/knowledge/{sample_document.id}",
-        headers=auth_header(admin_token))
-    assert response.status_code == 204
-```
+**Reindex:** Returns **202** with agreed JSON body until Week 3 wires ingestion.
 
 ---
 
-### Task 2.8 — Leads Model and Migration (Early Foundation)
+### Task 2.8 — Additional Models and Migration (Foundation)
 
-**What:** Create `leads`, `conversations`, `messages`, `analytics_events`, `ai_feedback` tables. These are needed as foundation for later weeks.
+**What:** Create tables: **`refresh_tokens`**, **`api_keys`**, **`audit_logs`**, plus **`leads`**, **`conversations`**, **`messages`**, **`analytics_events`**, **`ai_feedback`**.
 
-**Files to create:**
+**Files (adjust as you split migrations):**
 
 ```
+apps/api/app/db/models/refresh_token.py
+apps/api/app/db/models/api_key.py
+apps/api/app/db/models/audit_log.py
 apps/api/app/db/models/lead.py
 apps/api/app/db/models/conversation.py
 apps/api/app/db/models/message.py
@@ -430,60 +311,40 @@ apps/api/app/schemas/chat.py
 apps/api/app/schemas/analytics.py
 ```
 
-**Follow exact schema from PLAN.md Section 6.3.**
+**`api_keys` (minimal):** id, provider (text), key_encrypted or hashed secret reference, is_active, created_at, updated_at — align with PLAN.md future provider rotation (no need to wire UI this week).
 
-**Key fields to include:**
+**`audit_logs`:** id, user_id (FK users nullable if system), action, entity_type, entity_id (UUID), changes_json (nullable), created_at.
 
-**leads:** id, name, email, phone, preferred_language, service_interest, budget_range, placement, style_preference, notes, status (new/contacted/consultation_booked/converted/closed), source, created_at, updated_at
+Follow **PLAN.md Section 6.3** for lead/chat/analytics/feedback columns + CHECKs for statuses/roles/rating.
 
-**conversations:** id, session_id, lead_id (nullable FK), language, status (active/ended), summary, created_at, updated_at
+**Verification:** `\dt` lists **11** core tables: users, refresh_tokens, api_keys, audit_logs, knowledge_documents, knowledge_chunks, leads, conversations, messages, analytics_events, ai_feedback.
 
-**messages:** id, conversation_id (FK), role (user/assistant/system), content, intent, confidence, metadata_json, created_at
+---
 
-**analytics_events:** id, conversation_id (nullable FK), event_type, event_data (JSON), created_at
+### Task 2.9 — GitHub Actions CI
 
-**ai_feedback:** id, message_id (FK), rating (1-5), comment, created_at
+**What:** `.github/workflows/ci.yml` — on `push` and `pull_request` to `main`: backend install, ruff/pytest (unit + integration); frontend pnpm install, lint, `tsc`, build. Use paths or matrix as appropriate for monorepo.
 
-**Steps:**
-1. Create all 5 models
-2. Generate single migration: `alembic revision --autogenerate -m "add leads conversations messages analytics feedback"`
-3. Apply migration
-
-**Tests:**
-
-```python
-# apps/api/app/tests/unit/test_models.py
-def test_create_lead(db_session): ...
-def test_create_conversation(db_session): ...
-def test_create_message(db_session): ...
-def test_lead_status_values(db_session): ...
-def test_conversation_message_relationship(db_session): ...
-```
-
-**Verification:**
-```bash
-cd apps/api && alembic upgrade head
-# psql: \dt should show all 8 tables
-# users, leads, conversations, messages, knowledge_documents, knowledge_chunks, analytics_events, ai_feedback
-```
+**Note:** Matches scope moved from TODOS.md P2 into Week 2.
 
 ---
 
 ## Testing Checklist (Run After ALL Tasks Complete)
 
 - [ ] All migrations apply cleanly: `alembic upgrade head`
-- [ ] Rollback works: `alembic downgrade -1` then `alembic upgrade head`
-- [ ] All 8 tables exist in database
-- [ ] pgvector extension is active
-- [ ] Admin seed script runs: `make seed`
-- [ ] Admin login returns JWT: `POST /api/v1/admin/auth/login`
-- [ ] GET /api/v1/admin/me works with valid token
-- [ ] GET /api/v1/admin/me fails without token (401)
-- [ ] Admin can create knowledge document
-- [ ] Admin can list knowledge documents
-- [ ] Admin can update knowledge document
-- [ ] Admin can delete knowledge document
-- [ ] Unauthenticated requests to admin endpoints return 401
+- [ ] Rollback works: `alembic downgrade -1` then `alembic upgrade head` (or scripted smoke)
+- [ ] **11** tables exist (see Task 2.8)
+- [ ] `vector` extension exists via migration (verify on fresh DB)
+- [ ] HNSW index exists on `knowledge_chunks.embedding`
+- [ ] CHECK constraints reject invalid enum-like values (manual or test)
+- [ ] `make seed` / seed admin runs; password meets min length
+- [ ] Login returns access + refresh tokens; refresh returns new tokens
+- [ ] Login rate limit returns **429** after threshold
+- [ ] Production JWT placeholder rejected at startup when `ENVIRONMENT=production`
+- [ ] GET `/api/v1/admin/me` works with access token; **401** without
+- [ ] Knowledge CRUD + pagination caps behave correctly
+- [ ] Knowledge status transition tests pass
+- [ ] CI workflow passes on PR
 - [ ] All unit tests pass: `cd apps/api && python -m pytest app/tests/unit/ -v`
 - [ ] All integration tests pass: `cd apps/api && python -m pytest app/tests/integration/ -v`
 - [ ] Lint passes: `make lint`
@@ -492,21 +353,28 @@ cd apps/api && alembic upgrade head
 
 ## Git Commit Strategy
 
+Use a **feature branch** (e.g. `feature/week2-database-auth`), push branch, open **PR** to `main`.
+
 ```bash
-# After Task 2.1-2.2
-git add -A && git commit -m "feat(db): add user model, password hashing, and JWT auth"
+git checkout -b feature/week2-database-auth
 
-# After Task 2.3-2.4
-git add -A && git commit -m "feat(auth): add login endpoint and admin seed script"
+# After Task 2.1–2.2 (+ refresh_token model if merged here)
+git add -A && git commit -m "feat(db): add users, refresh tokens, password hashing and JWT"
 
-# After Task 2.5-2.7
-git add -A && git commit -m "feat(knowledge): add knowledge document CRUD with admin API"
+# After Task 2.3–2.4
+git commit -m "feat(auth): login, refresh, rate limit, seed admin"
+
+# After Task 2.5–2.7
+git commit -m "feat(knowledge): documents, chunks, CRUD API, indexes and HNSW"
 
 # After Task 2.8
-git add -A && git commit -m "feat(db): add leads, conversations, messages, analytics, feedback models"
+git commit -m "feat(db): api_keys, audit_logs, leads, chats, analytics, feedback"
 
-# Push all
-git push origin main
+# After Task 2.9
+git commit -m "ci: add GitHub Actions workflow for api and web"
+
+git push -u origin feature/week2-database-auth
+# Open PR → merge to main after review
 ```
 
 ---
