@@ -66,7 +66,7 @@ async def test_refresh_old_token_invalid_after_rotation(
 async def test_login_rate_limit(integration_client: AsyncClient, owner_user: User) -> None:
     from app.core import rate_limit as rl
 
-    rl._LOGIN_ATTEMPTS.clear()
+    rl.reset_ip_rate_limiters_for_tests()
     for _ in range(5):
         r = await integration_client.post(
             "/api/v1/admin/auth/login",
@@ -78,7 +78,10 @@ async def test_login_rate_limit(integration_client: AsyncClient, owner_user: Use
         json={"email": owner_user.email, "password": "wrong-password"},
     )
     assert blocked.status_code == 429
-    assert "retry-after" in {k.lower() for k in blocked.headers.keys()}
+    hk = {k.lower(): v for k, v in blocked.headers.items()}
+    assert "retry-after" in hk
+    assert "x-ratelimit-reset" in hk
+    assert "x-ratelimit-remaining" in hk
 
 
 @pytest.mark.asyncio
@@ -89,7 +92,7 @@ async def test_knowledge_crud_and_status(
 ) -> None:
     from app.core import rate_limit as rl
 
-    rl._LOGIN_ATTEMPTS.clear()
+    rl.reset_ip_rate_limiters_for_tests()
 
     login = await integration_client.post(
         "/api/v1/admin/auth/login",

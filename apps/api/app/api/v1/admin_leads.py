@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 
-from app.api.deps import DashboardUser, DBSessionDep
+from app.api.deps import DashboardUser, OwnerAdminUser, DBSessionDep
 from app.core.errors import NotFoundError, ValidationDomainError
 from app.db.models.lead import Lead
 from app.schemas.admin_leads import (
@@ -94,3 +94,16 @@ async def update_lead(
     await db.flush()
     await db.refresh(lead)
     return AdminLeadResponse.model_validate(lead)
+
+
+@router.delete("/{lead_id}", status_code=204)
+async def delete_lead(
+    lead_id: UUID,
+    db: DBSessionDep,
+    _user: OwnerAdminUser,
+) -> None:
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise NotFoundError("Lead not found")
+    await db.delete(lead)
+    await db.flush()

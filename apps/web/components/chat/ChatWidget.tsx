@@ -256,6 +256,22 @@ export function ChatWidget() {
 
           {/* Input */}
           <InputBar onSend={handleSend} disabled={isLoading || !sessionId} />
+
+          {/* Privacy footer */}
+          <div className="border-t border-zinc-800 px-3 py-1.5">
+            <p className="text-[11px] text-zinc-500 leading-tight">
+              By chatting, you agree to our{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-zinc-300"
+              >
+                privacy policy
+              </a>
+              .
+            </p>
+          </div>
         </div>
       )}
     </>

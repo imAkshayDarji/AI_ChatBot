@@ -89,9 +89,11 @@ async def session_factory(_engine_and_session):
 
 @pytest_asyncio.fixture(autouse=True)
 async def _truncate(_engine_and_session) -> AsyncGenerator[None, None]:
-    from app.core.rate_limit import _LOGIN_ATTEMPTS
+    from app.core import chat_rate_limit as chat_rl
+    from app.core import rate_limit as ip_rl
 
-    _LOGIN_ATTEMPTS.clear()
+    ip_rl.reset_ip_rate_limiters_for_tests()
+    chat_rl.reset_session_rate_limiters_for_tests()
 
     _eng, factory = _engine_and_session
     async with factory() as session:

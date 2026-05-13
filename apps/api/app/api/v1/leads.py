@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import DBSessionDep
+from app.core.rate_limit import check_leads_rate_limit
 from app.schemas.leads import LeadCreateRequest, LeadResponse
 from app.services.analytics.tracker import AnalyticsTracker
 from app.services.leads.service import LeadCreate, LeadService
@@ -15,7 +16,16 @@ _lead_svc = LeadService()
 
 
 @router.post("", response_model=LeadResponse, status_code=status.HTTP_201_CREATED)
-async def create_public_lead(body: LeadCreateRequest, db: DBSessionDep) -> LeadResponse:
+async def create_public_lead(
+    request: Request,
+    response: Response,
+    body: LeadCreateRequest,
+    db: DBSessionDep,
+) -> LeadResponse:
+    rl = check_leads_rate_limit(request)
+    response.headers["X-RateLimit-Remaining"] = str(rl.remaining)
+    response.headers["X-RateLimit-Reset"] = str(rl.reset_epoch)
+
     lead = await _lead_svc.create_lead(
         db,
         LeadCreate(

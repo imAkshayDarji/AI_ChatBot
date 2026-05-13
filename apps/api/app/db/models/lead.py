@@ -37,6 +37,10 @@ class Lead(Base):
     style_preference: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     conversation_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,

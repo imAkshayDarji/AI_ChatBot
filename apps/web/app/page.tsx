@@ -1,4 +1,5 @@
 import { ChatWidget } from "@/components/chat/ChatWidget";
+import { ErrorBoundary } from "@/components/chat/ErrorBoundary";
 
 export default function Home() {
   return (
@@ -18,7 +19,9 @@ export default function Home() {
           Click the chat bubble to get started.
         </p>
       </main>
-      <ChatWidget />
+      <ErrorBoundary>
+        <ChatWidget />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -90,6 +90,8 @@ def require_role(*allowed_roles: str):
 
 DashboardUser = Annotated[User, Depends(require_role("owner", "admin", "staff"))]
 
+OwnerAdminUser = Annotated[User, Depends(require_role("owner", "admin"))]
+
 
 def get_embedding_service() -> EmbeddingService:
     settings = get_settings()

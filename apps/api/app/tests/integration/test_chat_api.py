@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, AsyncIterator
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -142,6 +143,39 @@ async def test_feedback_rating_five_allowed(integration_chat_stub_client: AsyncC
         json={"session_id": session_id, "message_id": message_id, "rating": 5},
     )
     assert fb.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_chat_start_rate_limit_integration(integration_chat_stub_client: AsyncClient) -> None:
+    for i in range(5):
+        r = await integration_chat_stub_client.post(
+            "/api/v1/chat/start",
+            json={"language": "en", "channel": "web"},
+        )
+        assert r.status_code == 200, i
+    sixth = await integration_chat_stub_client.post(
+        "/api/v1/chat/start",
+        json={"language": "en", "channel": "web"},
+    )
+    assert sixth.status_code == 429
+    hk = {k.lower(): v for k, v in sixth.headers.items()}
+    assert hk.get("retry-after")
+    assert "x-ratelimit-remaining" in hk
+
+
+@pytest.mark.asyncio
+async def test_leads_rate_limit_integration(integration_chat_stub_client: AsyncClient) -> None:
+    suffix = uuid4().hex[:12]
+    payload = {
+        "name": "Someone",
+        "email": f"lead-{suffix}@example.com",
+        "consent": True,
+    }
+    for _ in range(3):
+        r = await integration_chat_stub_client.post("/api/v1/leads", json=payload)
+        assert r.status_code == 201
+    blocked = await integration_chat_stub_client.post("/api/v1/leads", json=payload)
+    assert blocked.status_code == 429
 
 
 @pytest.mark.asyncio

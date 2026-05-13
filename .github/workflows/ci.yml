@@ -40,8 +40,10 @@ jobs:
         run: pip install -r requirements.txt
       - name: Ruff
         run: python -m ruff check app/
-      - name: Pytest (unit + integration)
-        run: python -m pytest app/tests/ -v
+      - name: Alembic migration check
+        run: python -m alembic upgrade head
+      - name: Pytest (exclude live OpenAI)
+        run: python -m pytest app/tests/ -v -m "not openai"
 
   frontend:
     runs-on: ubuntu-latest

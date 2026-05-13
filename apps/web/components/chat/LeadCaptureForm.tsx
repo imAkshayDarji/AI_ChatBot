@@ -112,7 +112,7 @@ export function LeadCaptureForm({ language, onSuccess }: LeadCaptureFormProps) {
           className="mt-0.5 rounded border-zinc-600 accent-amber-600"
         />
         <span className="text-[10px] text-zinc-400 leading-tight">
-          By submitting your details, you agree that the studio can contact you about your enquiry.
+          By submitting your details, you agree that Krystal Tattoo Studio can contact you about your enquiry.
         </span>
       </label>
 

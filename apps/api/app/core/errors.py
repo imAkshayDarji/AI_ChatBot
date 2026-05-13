@@ -1,5 +1,7 @@
 """Domain errors and FastAPI handlers. Routes raise domain errors; handlers map to HTTP."""
 
+import time
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -44,7 +46,22 @@ class InvalidTokenError(DomainError):
 
 
 class RateLimitExceededError(DomainError):
-    pass
+    retry_after_seconds: int | None
+    rate_limit_remaining: int | None
+    rate_limit_reset_epoch: int | None
+
+    def __init__(
+        self,
+        detail: str,
+        *,
+        retry_after_seconds: int | None = None,
+        rate_limit_remaining: int | None = None,
+        rate_limit_reset_epoch: int | None = None,
+    ) -> None:
+        self.retry_after_seconds = retry_after_seconds
+        self.rate_limit_remaining = rate_limit_remaining
+        self.rate_limit_reset_epoch = rate_limit_reset_epoch
+        super().__init__(detail)
 
 
 class KnowledgeStatusTransitionError(DomainError):
@@ -101,10 +118,20 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RateLimitExceededError)
     async def rate_lim(request: Request, exc: RateLimitExceededError) -> JSONResponse:
+        retry_after = exc.retry_after_seconds
+        if retry_after is None and exc.rate_limit_reset_epoch is not None:
+            retry_after = max(1, exc.rate_limit_reset_epoch - int(time.time()))
+        if retry_after is None:
+            retry_after = _retry_after_seconds()
+        headers: dict[str, str] = {"Retry-After": str(retry_after)}
+        if exc.rate_limit_remaining is not None:
+            headers["X-RateLimit-Remaining"] = str(exc.rate_limit_remaining)
+        if exc.rate_limit_reset_epoch is not None:
+            headers["X-RateLimit-Reset"] = str(exc.rate_limit_reset_epoch)
         return JSONResponse(
             status_code=429,
             content={"detail": exc.detail},
-            headers={"Retry-After": str(_retry_after_seconds())},
+            headers=headers,
         )
 
     @app.exception_handler(NotFoundError)

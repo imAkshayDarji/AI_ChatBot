@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -58,6 +59,7 @@ class LeadService:
             notes=data.notes,
             source=data.source or "chat",
             conversation_context=data.conversation_context,
+            consent_at=datetime.now(UTC),
             status="new",
         )
         db.add(lead)

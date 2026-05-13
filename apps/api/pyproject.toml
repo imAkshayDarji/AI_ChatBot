@@ -36,7 +36,10 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "module"
-markers = ["integration: requires PostgreSQL + create_all schema"]
+markers = [
+    "integration: requires PostgreSQL + create_all schema",
+    "openai: calls real OpenAI API — excluded from CI",
+]
 
 [tool.ruff]
 line-length = 100

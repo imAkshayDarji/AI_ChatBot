@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     STUDIO_NAME: str = "Krystal Tattoo Studio"
     ENVIRONMENT: str = "development"
+    LOG_LEVEL: str = "INFO"
+    SENTRY_DSN: str = ""
     DATABASE_URL: str = (
         "postgresql+asyncpg://krystal:krystal_dev_password@localhost:5432/krystal_studio"
     )

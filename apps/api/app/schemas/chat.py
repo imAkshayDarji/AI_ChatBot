@@ -25,6 +25,14 @@ class ChatMessageRequest(BaseModel):
     language: Literal["en", "hi", "gu"] = "en"
     channel: Literal["web", "whatsapp", "instagram"] = "web"
 
+    @field_validator("session_id")
+    @classmethod
+    def session_id_non_whitespace(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("session_id cannot be empty or whitespace-only")
+        return stripped
+
     @field_validator("message")
     @classmethod
     def nonempty_stripped(cls, value: str) -> str:
@@ -78,3 +86,11 @@ class ChatFeedbackRequest(BaseModel):
     message_id: uuid.UUID
     rating: int = Field(..., ge=1, le=5)
     comment: str | None = Field(None, max_length=2000)
+
+    @field_validator("session_id")
+    @classmethod
+    def feedback_session_id_non_whitespace(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("session_id cannot be empty or whitespace-only")
+        return stripped

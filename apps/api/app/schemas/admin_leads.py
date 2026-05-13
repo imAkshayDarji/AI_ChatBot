@@ -22,6 +22,7 @@ class AdminLeadResponse(BaseModel):
     style_preference: str | None = None
     notes: str | None = None
     conversation_context: str | None = None
+    consent_at: datetime | None = None
     status: str
     source: str | None = None
     created_at: datetime

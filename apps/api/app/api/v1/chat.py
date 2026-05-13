@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from app.api.deps import DBSessionDep, get_chat_orchestrator
 from app.core.chat_rate_limit import CHAT_FEEDBACK_LIMITER, split_chat_session_budget
 from app.core.config import get_settings
 from app.core.errors import ForbiddenError, RateLimitExceededError
+from app.core.rate_limit import check_chat_start_rate_limit
 from app.db.models.conversation import Conversation
 from app.db.models.feedback import AIFeedback
 from app.db.models.message import Message
@@ -32,7 +34,16 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/start", response_model=ChatStartResponse)
-async def chat_start(body: ChatStartRequest, db: DBSessionDep) -> ChatStartResponse:
+async def chat_start(
+    request: Request,
+    response: Response,
+    body: ChatStartRequest,
+    db: DBSessionDep,
+) -> ChatStartResponse:
+    rl_ip = check_chat_start_rate_limit(request)
+    response.headers["X-RateLimit-Remaining"] = str(rl_ip.remaining)
+    response.headers["X-RateLimit-Reset"] = str(rl_ip.reset_epoch)
+
     settings = get_settings()
     session_id_str = str(uuid.uuid4())
 
@@ -58,7 +69,12 @@ async def chat_message(
 ) -> ChatMessageResponse:
     rl = split_chat_session_budget(body.session_id)
     if not rl.allowed:
-        raise RateLimitExceededError("Too many chat messages for this session.")
+        raise RateLimitExceededError(
+            "Too many chat messages for this session.",
+            retry_after_seconds=max(1, rl.reset_epoch - int(time.time())),
+            rate_limit_remaining=0,
+            rate_limit_reset_epoch=rl.reset_epoch,
+        )
     response.headers["X-RateLimit-Remaining"] = str(rl.remaining)
     response.headers["X-RateLimit-Reset"] = str(rl.reset_epoch)
 
@@ -72,7 +88,12 @@ async def chat_message_stream(
 ) -> StreamingResponse:
     rl = split_chat_session_budget(body.session_id)
     if not rl.allowed:
-        raise RateLimitExceededError("Too many chat messages for this session.")
+        raise RateLimitExceededError(
+            "Too many chat messages for this session.",
+            retry_after_seconds=max(1, rl.reset_epoch - int(time.time())),
+            rate_limit_remaining=0,
+            rate_limit_reset_epoch=rl.reset_epoch,
+        )
 
     streaming_headers = {
         "X-RateLimit-Remaining": str(rl.remaining),
@@ -113,7 +134,12 @@ async def chat_feedback(
 ) -> None:
     rl = CHAT_FEEDBACK_LIMITER.check(body.session_id)
     if not rl.allowed:
-        raise RateLimitExceededError("Too many feedback submissions for this session.")
+        raise RateLimitExceededError(
+            "Too many feedback submissions for this session.",
+            retry_after_seconds=max(1, rl.reset_epoch - int(time.time())),
+            rate_limit_remaining=0,
+            rate_limit_reset_epoch=rl.reset_epoch,
+        )
     response.headers["X-RateLimit-Remaining"] = str(rl.remaining)
     response.headers["X-RateLimit-Reset"] = str(rl.reset_epoch)
 
