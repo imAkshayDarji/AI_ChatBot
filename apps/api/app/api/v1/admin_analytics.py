@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Query
@@ -32,9 +32,13 @@ def _parse_date_range(
     start_date: str | None,
     end_date: str | None,
 ) -> tuple[datetime, datetime]:
-    end = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc) if end_date else datetime.now(timezone.utc)
+    end = (
+        datetime.fromisoformat(end_date).replace(tzinfo=UTC)
+        if end_date
+        else datetime.now(UTC)
+    )
     start = (
-        datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+        datetime.fromisoformat(start_date).replace(tzinfo=UTC)
         if start_date
         else end - timedelta(days=30)
     )
@@ -97,7 +101,11 @@ async def analytics_overview(
 
     lang_rows = (await db.execute(
         select(Conversation.language, func.count(Conversation.id).label("cnt"))
-        .where(Conversation.created_at >= start, Conversation.created_at <= end, Conversation.language.isnot(None))
+        .where(
+            Conversation.created_at >= start,
+            Conversation.created_at <= end,
+            Conversation.language.isnot(None),
+        )
         .group_by(Conversation.language)
         .order_by(func.count(Conversation.id).desc())
     )).all()
@@ -141,7 +149,11 @@ async def popular_intents(
 
     total_with_intent = sum(r[1] for r in rows)
     intents = [
-        IntentStat(intent=r[0], count=r[1], percentage=round(r[1] / total_with_intent, 2) if total_with_intent else 0.0)
+        IntentStat(
+            intent=r[0],
+            count=r[1],
+            percentage=round(r[1] / total_with_intent, 2) if total_with_intent else 0.0,
+        )
         for r in rows
     ]
 
@@ -170,7 +182,11 @@ async def failed_queries(
     count_stmt = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_stmt)).scalar_one()
 
-    rows_stmt = base.order_by(Message.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    rows_stmt = (
+        base.order_by(Message.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     rows = (await db.execute(rows_stmt)).scalars().all()
 
     items: list[FailedQueryItem] = []

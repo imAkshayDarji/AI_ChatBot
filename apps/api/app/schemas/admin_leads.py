@@ -29,7 +29,10 @@ class AdminLeadResponse(BaseModel):
 
 
 class AdminLeadUpdateRequest(BaseModel):
-    status: str | None = Field(None, pattern=r"^(new|contacted|consultation_booked|converted|closed)$")
+    status: str | None = Field(
+        None,
+        pattern=r"^(new|contacted|consultation_booked|converted|closed)$",
+    )
     notes: str | None = Field(None, max_length=2000)
 
 

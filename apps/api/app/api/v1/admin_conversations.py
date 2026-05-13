@@ -53,13 +53,6 @@ async def list_conversations(
     rows_stmt = base.order_by(order).offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(rows_stmt)).scalars().all()
 
-    msg_count_subq = (
-        select(func.count(Message.id).label("cnt"))
-        .where(Message.conversation_id == Conversation.id)
-        .correlate(Conversation)
-        .scalar_subquery()
-    )
-
     items: list[ConversationListItem] = []
     for conv in rows:
         cnt_stmt = select(func.count(Message.id)).where(Message.conversation_id == conv.id)
@@ -93,11 +86,6 @@ async def get_conversation(
     db: DBSessionDep,
     _user: DashboardUser,
 ) -> ConversationDetail:
-    stmt = (
-        select(Conversation)
-        .where(Conversation.id == conversation_id)
-        .options(selectinload(Conversation.messages) if hasattr(Conversation, "messages") else None)
-    )
     conv = (await db.execute(
         select(Conversation).where(Conversation.id == conversation_id)
     )).scalar_one_or_none()
