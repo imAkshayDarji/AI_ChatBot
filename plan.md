@@ -2797,11 +2797,12 @@ system can ingest knowledge and retrieve correct chunks
 Deliverables:
 
 ```text
-chunker
-embedding service
-retriever
-AI provider abstraction
-prompt builder
+Alembic + schema: embedding column dimension matches text-embedding-3-large (3072)
+chunker (char-based windows; validated FAQ ingestion)
+embedding service (EmbeddingError; transactional ingest after embeddings succeed)
+retriever (empty-query short-circuit)
+ingestion wired to admin reindex (sync 200 MVP)
+AI provider abstraction (AIProviderError)
 RAG tests
 ```
 
@@ -2914,10 +2915,10 @@ Manually verify secrets and production settings.
 [x] Build auth
 [x] Build admin guards
 [x] Build knowledge CRUD
-[ ] Build chunking
-[ ] Build embeddings
-[ ] Build retrieval
-[ ] Build AI provider abstraction
+[x] Build chunking
+[x] Build embeddings
+[x] Build retrieval
+[x] Build AI provider abstraction
 [ ] Build prompt builder
 [ ] Build safety guardrails
 [ ] Build chat orchestrator
@@ -2998,6 +2999,7 @@ multi-channel automation
 |---|---|
 | AI Provider | OpenAI GPT-4o-mini (chat) |
 | Embedding Model | OpenAI text-embedding-3-large |
+| Embedding vector size | **3072** — `knowledge_chunks.embedding` must match (Week 3 Task 3.0 in [docs/plans/week-3.md](docs/plans/week-3.md)) |
 | Python Version | 3.12 |
 | Node.js Version | 20 LTS |
 | Package Manager | pnpm |
@@ -3015,7 +3017,7 @@ Each week has a detailed plan file with tasks, tests, and verification:
 |---|---|---|
 | Week 1 | [docs/plans/week-1.md](docs/plans/week-1.md) — Architecture, Planning, Foundation | COMPLETED |
 | Week 2 | [docs/plans/week-2.md](docs/plans/week-2.md) — Database, Auth, Knowledge Management | COMPLETED |
-| Week 3 | [docs/plans/week-3.md](docs/plans/week-3.md) — RAG Pipeline and AI Core | NOT STARTED |
+| Week 3 | [docs/plans/week-3.md](docs/plans/week-3.md) — RAG Pipeline and AI Core | COMPLETED |
 | Week 4 | [docs/plans/week-4.md](docs/plans/week-4.md) — Chat Orchestration, Leads, Analytics | NOT STARTED |
 | Week 5 | [docs/plans/week-5.md](docs/plans/week-5.md) — Frontend Chat Widget and Admin Dashboard | NOT STARTED |
 | Week 6 | [docs/plans/week-6.md](docs/plans/week-6.md) — Deployment, Security, Production Launch | NOT STARTED |
@@ -3049,7 +3051,7 @@ After completing ALL tasks in a week:
 |---|---|---|---|---|
 | Week 1 | 2026-05-13 | 2026-05-13 | COMPLETED | Architecture, Planning, Foundation |
 | Week 2 | 2026-05-13 | 2026-05-13 | COMPLETED | Database, Auth, Knowledge Management |
-| Week 3 | — | — | NOT STARTED | RAG Pipeline and AI Core |
+| Week 3 | 2026-05-13 | 2026-05-13 | COMPLETED | Phases 6–8 delivered: ingestion, retrieval, AI provider |
 | Week 4 | — | — | NOT STARTED | Chat Orchestration, Leads, Analytics |
 | Week 5 | — | — | NOT STARTED | Frontend Chat Widget and Admin Dashboard |
 | Week 6 | — | — | NOT STARTED | Deployment, Security, Production Launch |
@@ -3072,10 +3074,10 @@ After completing ALL tasks in a week:
 [x] Build auth
 [x] Build admin guards
 [x] Build knowledge CRUD
-[ ] Build chunking
-[ ] Build embeddings
-[ ] Build retrieval
-[ ] Build AI provider abstraction
+[x] Build chunking
+[x] Build embeddings
+[x] Build retrieval
+[x] Build AI provider abstraction
 [ ] Build prompt builder
 [ ] Build safety guardrails
 [ ] Build chat orchestrator

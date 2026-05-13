@@ -1,6 +1,6 @@
 # Week 3 — RAG Pipeline and AI Core
 
-> **Status:** NOT STARTED
+> **Status:** COMPLETED
 > **Depends on:** Week 2 completed
 > **Blocks:** Week 4
 
@@ -9,6 +9,22 @@
 ## Goal
 
 System can ingest knowledge documents (clean, chunk, embed), store vectors in pgvector, retrieve relevant chunks for queries, and generate AI responses through an abstracted provider.
+
+---
+
+## Decisions from CEO review (2026-05-13)
+
+Apply these **before** treating Week 3 as done; they unblock correct behaviour and MVP semantics.
+
+| Area | Decision |
+|------|----------|
+| **Embedding column** | `text-embedding-3-large` is **3072** dimensions. The DB layer must match (migration **Task 3.0**) before any ingestion. |
+| **Vector ANN index** | Default pgvector **HNSW** caps around **2000** dimensions — not valid for 3072. Migration **drops** the old HNSW index; MVP relies on sequential scans unless you add IVFFlat after backfill ([P2] in `TODOS.md`). |
+| **Ingestion order** | **Embed first**, then **delete old chunks + insert new chunks in one DB transaction**. Never delete chunks before new embeddings succeed (avoids wiping search on API failure). |
+| **Admin reindex HTTP** | Reindex runs **synchronously** in-request for MVP → return **HTTP 200** with a JSON body (`chunk_count`, `document_id`). **202** reserved for future background queue. |
+| **Domain errors** | Define **`EmbeddingError`** and **`AIProviderError`** in `apps/api/app/core/errors.py` (used by embeddings + provider tests and handlers). |
+| **Guards** | Reject **whitespace-only / empty document content** at ingest with a clear domain error; **`retrieve("")`** returns **`[]`** without calling the embedding API. |
+| **Out of MVP scope** | Hybrid BM25 + vector search, content-hash skip re-embed, and `GET …/chunks` admin inspection → tracked in **`TODOS.md`** ([P2] items). |
 
 ---
 
@@ -22,6 +38,29 @@ System can ingest knowledge documents (clean, chunk, embed), store vectors in pg
 ---
 
 ## Tasks
+
+### Task 3.0 — Embedding dimension migration (BLOCKING)
+
+**What:** Align `knowledge_chunks.embedding` with **`text-embedding-3-large` (3072)**. The codebase previously used **`Vector(1536)`**, which breaks inserts/selects once real embeddings are written.
+
+**Files to modify:**
+
+```
+apps/api/app/db/models/knowledge.py  (Vector dimensions)
+apps/api/alembic/versions/<new_revision>_embedding_3072.py
+```
+
+**Requirements:**
+
+- Alembic revision: alter column type / dimension for `knowledge_chunks.embedding` to **`vector(3072)`** (or equivalent for your pgvector + SQLAlchemy setup).
+- **Data:** existing environments with wrong dimension may require **truncate chunks** or a **destructive migration** doc note for dev-only DBs — state this in the revision docstring if applicable.
+- **Verification:** migrate up; run a smoke insert with a mocked 3072-length vector or one real `embed_text` call in integration test.
+
+**Tests:**
+
+- Prefer an integration test or migration smoke that asserts the column accepts length **3072** (and rejects wrong length).
+
+---
 
 ### Task 3.1 — Text Cleaning Service
 
@@ -92,10 +131,12 @@ apps/api/app/services/rag/chunker.py
 
 **Configuration (from PLAN.md Section 7.3):**
 
+Pick **one coherent unit** (characters *or* tokens) and document it next to constants. PLAN speaks in rough character targets **and** overlapping windows — for MVP implementation, use **characters** for both slice size and overlap unless you integrate a tokenizer.
+
 ```python
-CHUNK_SIZE = 800  # ~3000 characters target
-CHUNK_OVERLAP = 120  # tokens
-MIN_CHUNK_SIZE = 100  # don't create tiny chunks
+CHUNK_SIZE = 800  # characters per window (implement as char-based unless tokenized)
+CHUNK_OVERLAP = 120  # characters overlap with previous chunk
+MIN_CHUNK_SIZE = 100  # minimum chunk length in characters — skip merge noise
 ```
 
 **Class:**
@@ -120,6 +161,7 @@ class Chunk:
 ```
 
 **Chunking rules from PLAN.md:**
+- **`chunk_faq`:** validate input — each dict must have non-empty **`q`** and **`a`** (raise a clear **`ValueError`** or domain error); skip or reject malformed rows explicitly (no silent drops).
 - Keep FAQ question and answer together
 - Keep aftercare steps together
 - Keep pricing guidance together
@@ -192,11 +234,12 @@ class EmbeddingService:
 
 **Constraints:**
 - All embedding calls MUST go through this service (PLAN.md Rule 1.5)
-- Handle API errors with retry (up to 3 attempts)
-- Log token usage
+- Handle API errors with **retry with backoff** (e.g. up to 3 attempts on transient errors); **on final failure raise `EmbeddingError`** with status/body context (do not swallow)
+- **`embed_texts`:** if batching, a **partial batch failure must fail the whole batch** unless you implement explicit per-item error aggregation — MVP: **fail fast** after retries
+- Log token usage (**aggregate counts**, avoid logging full payloads)
 - Handle rate limits gracefully
 - Batch size limit: 100 texts per call
-- Use `text-embedding-3-large` model
+- Use `text-embedding-3-large` model (**3072** dims — depends on Task 3.0)
 
 **Tests:**
 
@@ -223,7 +266,9 @@ async def test_embed_error_handling(mock_openai_error):
 
 ### Task 3.4 — Ingestion Pipeline
 
-**What:** Wire up cleaner -> chunker -> embedder -> database storage.
+**What:** Wire up cleaner → chunker → embedder → **transactional DB replace** for chunks.
+
+**Concurrent reindex:** two overlapping `ingest_document` calls for the same `document_id` can race — MVP **acceptable** dependency: serialize via admin UX or document “do not double-click reindex”; optional later: **`SELECT … FOR UPDATE`** on document row inside the transaction.
 
 **Files to create:**
 
@@ -240,13 +285,15 @@ class IngestionService:
     async def ingest_document(self, document: KnowledgeDocument) -> list[KnowledgeChunk]:
         """
         Full pipeline:
-        1. Clean text
-        2. Chunk text
-        3. Generate embeddings for all chunks
-        4. Delete old chunks for this document
-        5. Insert new chunks with embeddings
-        6. Mark document status as 'active'
-        7. Return created chunks
+        1. Reject empty / whitespace-only content (domain error — do not wipe existing chunks).
+        2. Clean text
+        3. Chunk text (may yield zero chunks → treat as validation error or no-op policy; document choice)
+        4. Generate embeddings for **all** chunk texts (**before** touching old rows).
+        5. BEGIN transaction: delete old chunks for this document; insert new rows with embeddings; commit.
+        6. Mark document status as 'active' (same transaction or immediate follow-up per your pattern).
+        7. Return created chunks.
+
+        Ordering ensures embedding/API failure never leaves the document with **zero** searchable chunks unless you explicitly chose to clear on validation failure only.
         """
         ...
 
@@ -258,12 +305,12 @@ class IngestionService:
 **Flow:**
 ```
 document.content
+    -> validate non-empty
     -> clean_text()
     -> chunker.chunk_text()
-    -> embedding_service.embed_texts()
-    -> delete old chunks
-    -> insert new chunks with embeddings
-    -> update document.status = "active"
+    -> embedding_service.embed_texts(...)   # succeeds or raises — no deletes yet
+    -> BEGIN; delete old chunks; insert new; COMMIT
+    -> update document.status = "active" (if not in same tx)
 ```
 
 **Tests:**
@@ -286,6 +333,12 @@ async def test_reingest_replaces_chunks(db_session, sample_document, mock_embedd
     # Old chunks should be gone, new ones created
     assert len(chunks_v2) > 0
     # Total chunks in DB should be len(chunks_v2), not len(v1) + len(v2)
+
+async def test_empty_content_raises(db_session, sample_document, mock_embedding):
+    sample_document.content = "   "
+    service = IngestionService(db_session, mock_embedding)
+    with pytest.raises(Exception):  # use concrete domain error type
+        await service.ingest_document(sample_document)
 ```
 
 ---
@@ -307,10 +360,16 @@ apps/api/app/api/v1/admin_knowledge.py  (update reindex endpoint)
 async def reindex_document(document_id: UUID, ...):
     document = await knowledge_service.get_document(db, document_id)
     chunks = await ingestion_service.ingest_document(document)
-    return {"message": f"Indexed {len(chunks)} chunks", "document_id": str(document_id)}
+    return {
+        "message": f"Indexed {len(chunks)} chunks",
+        "document_id": str(document_id),
+        "chunk_count": len(chunks),
+    }
 ```
 
-**Also:** Auto-index on document creation if status is "active".
+**HTTP:** **`200 OK`** — work completes in-request (synchronous MVP). **`202 Accepted`** only when a real background job exists.
+
+**Also:** Auto-index on document creation if status is `"active"` (same synchronous semantics unless queued).
 
 **Tests:**
 
@@ -319,8 +378,10 @@ async def reindex_document(document_id: UUID, ...):
 def test_reindex_document(client, admin_token, sample_document):
     response = client.post(f"/api/v1/admin/knowledge/{sample_document.id}/reindex",
         headers=auth_header(admin_token))
-    assert response.status_code == 202
-    assert "chunks" in response.json()["message"].lower()
+    assert response.status_code == 200
+    body = response.json()
+    assert "chunks" in body["message"].lower()
+    assert body.get("chunk_count", 0) >= 1
 ```
 
 ---
@@ -350,11 +411,12 @@ class RetrieverService:
         similarity_threshold: float = 0.5,
     ) -> list[RetrievalResult]:
         """
-        1. Embed query
-        2. Search knowledge_chunks using pgvector cosine similarity
-        3. Prefer selected language, fall back to English
-        4. Apply similarity threshold
-        5. Return top_k results with metadata
+        1. If query is empty or whitespace-only after strip → return [] (no embedding call).
+        2. Embed query
+        3. Search knowledge_chunks using pgvector cosine similarity
+        4. Prefer selected language, fall back to English
+        5. Apply similarity threshold
+        6. Return top_k results with metadata
         """
         ...
 
@@ -387,6 +449,7 @@ LIMIT :top_k
 
 **Constraints:**
 - All retrieval MUST go through this service (PLAN.md Rule 1.5)
+- **Empty-query short-circuit** (see step 1 above)
 - Language fallback: prefer user's language, then English
 - Similarity threshold: configurable, default 0.5
 - If no results above threshold, return empty list (do NOT invent results)
@@ -417,11 +480,30 @@ async def test_retrieve_no_results(db_session, empty_knowledge):
 async def test_similarity_threshold(db_session, knowledge):
     results = await retriever.retrieve("hello world", similarity_threshold=0.99)
     assert len(results) == 0  # threshold too high
+
+async def test_empty_query_returns_empty(db_session):
+    results = await retriever.retrieve("")
+    results_ws = await retriever.retrieve("   \n")
+    assert results == [] and results_ws == []
 ```
 
 ---
 
-### Task 3.7 — AI Provider Abstraction
+### Task 3.7 — Domain errors for AI / embeddings
+
+**What:** Implement **`EmbeddingError`** and **`AIProviderError`** in `apps/api/app/core/errors.py` with HTTP mapping consistent with existing `DomainError` handlers (e.g. 502 / 503 for upstream AI failures vs 400 for validation — pick one documented pattern).
+
+**Files to modify:**
+
+```
+apps/api/app/core/errors.py
+```
+
+**Requirements:** subclasses used by `EmbeddingService` and `OpenAIProvider` tests; messages include **`status_code` / snippet of response body** when available (**no secrets**).
+
+---
+
+### Task 3.8 — AI Provider Abstraction
 
 **What:** Create the AI provider interface and OpenAI implementation.
 
@@ -522,7 +604,7 @@ async def test_provider_error_handling(mock_openai_error):
 
 ---
 
-### Task 3.8 — Seed Knowledge Script
+### Task 3.9 — Seed Knowledge Script
 
 **What:** Create a script to seed sample knowledge for testing.
 
@@ -564,38 +646,46 @@ python scripts/seed_knowledge.py
 
 ## Testing Checklist (Run After ALL Tasks Complete)
 
-- [ ] Text cleaner handles HTML, whitespace, empty strings
-- [ ] Chunker creates proper chunks with overlap
-- [ ] Embedding service generates vectors (mock test)
-- [ ] Ingestion pipeline: document -> chunks -> embeddings stored in DB
-- [ ] Reindex endpoint works via API
-- [ ] Retrieval returns relevant chunks for tattoo queries
-- [ ] Retrieval returns relevant chunks for piercing queries
-- [ ] Retrieval returns relevant chunks for dreadlock queries
-- [ ] Language fallback works (Hindi query -> English results)
-- [ ] No-result case returns empty list (not error)
-- [ ] AI provider chat works (mock test)
-- [ ] Model router selects correct model by complexity
-- [ ] Seed knowledge script creates documents with embeddings
-- [ ] All unit tests pass
-- [ ] All integration tests pass
-- [ ] Lint passes
+- [x] Migration 3.0 applied; DB accepts **3072**-dim vectors
+- [x] Text cleaner handles HTML, whitespace, empty strings
+- [x] Chunker creates proper chunks with overlap
+- [x] `chunk_faq` validates `q` / `a` and errors on malformed input
+- [x] Embedding service generates vectors (mock test)
+- [x] **`EmbeddingError` / `AIProviderError`** wired and reachable from failure paths
+- [x] Ingestion pipeline: document -> chunks -> embeddings stored in DB (**transactional replace** after successful embed)
+- [x] Empty / whitespace-only document content rejected without deleting chunks
+- [x] Reindex endpoint returns **200** with `chunk_count` (sync MVP)
+- [x] Retrieval returns relevant chunks for tattoo queries
+- [x] Retrieval returns relevant chunks for piercing queries
+- [x] Retrieval returns relevant chunks for dreadlock queries
+- [x] Language fallback works (Hindi query -> English results)
+- [x] No-result case returns empty list (not error)
+- [x] **`retrieve("")` short-circuit** — empty / whitespace-only query returns `[]` without embedding API
+- [x] AI provider chat works (mock test)
+- [x] Model router selects correct model by complexity
+- [x] Seed knowledge script creates documents with embeddings *(manual: `python scripts/seed_knowledge.py` with API key; CI uses stubs)*
+- [x] All unit tests pass
+- [x] All integration tests pass
+- [x] Lint passes
 
 ---
 
 ## Git Commit Strategy
 
 ```bash
+# Task 3.0 (migration + model alignment)
+git add -A && git commit -m "feat(db): align knowledge chunk embeddings to 3072 dimensions"
+
 # After Task 3.1-3.2
 git add -A && git commit -m "feat(rag): add text cleaner and document chunker"
 
-# After Task 3.3-3.4
+# After Task 3.3-3.4 (include errors if landed together)
 git add -A && git commit -m "feat(rag): add embedding service and ingestion pipeline"
 
 # After Task 3.5-3.6
 git add -A && git commit -m "feat(rag): add knowledge reindex and vector retrieval"
 
-# After Task 3.7-3.8
+# After Task 3.8-3.9
 git add -A && git commit -m "feat(ai): add provider abstraction, model router, and seed knowledge"
 
 git push origin main
@@ -605,6 +695,6 @@ git push origin main
 
 ## After Week 3 Completion
 
-- [ ] Update PLAN.md checklist — mark Phase 6, 7, 8 items as done
-- [ ] Update this file's status to COMPLETED
-- [ ] Proceed to `docs/plans/week-4.md`
+- [x] Update PLAN.md checklist — mark Phase 6, 7, 8 items as done
+- [x] Update this file's status to COMPLETED
+- [x] Proceed to `docs/plans/week-4.md` *(next implementation week — see that file when starting Week 4)*

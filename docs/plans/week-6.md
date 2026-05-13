@@ -6,6 +6,12 @@
 
 ---
 
+## Production note (Week 3 / database)
+
+Deploy only after **`alembic upgrade head`** has applied Week 3’s **`Vector(3072)`** embedding migration on production Postgres (`text-embedding-3-large`). A mismatch causes chunk writes to fail at runtime.
+
+---
+
 ## Goal
 
 Public MVP ready. Backend deployed to Railway, frontend deployed to Vercel, production database running, security hardened, monitoring in place.
@@ -457,7 +463,7 @@ NEXT_PUBLIC_STUDIO_NAME=Krystal Tattoo Studio
 | Lead capture | Submit lead form | Lead created |
 | Admin login | Login with credentials | JWT token returned |
 | Admin knowledge | Create document | Document created |
-| Admin reindex | Reindex document | Chunks created |
+| Admin reindex | Reindex document | **200 OK**, **`chunk_count`** in body, chunks created |
 | Admin leads | View leads | Lead list shown |
 | Admin chats | View chat history | Transcript shown |
 | Rate limiting | 21 messages in 1 min | 429 on 21st |

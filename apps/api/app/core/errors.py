@@ -55,6 +55,42 @@ class ValidationDomainError(DomainError):
     pass
 
 
+class EmbeddingError(DomainError):
+    """Upstream embedding provider failure after retries."""
+
+    upstream_status: int | None
+    body_snippet: str | None
+
+    def __init__(
+        self,
+        detail: str,
+        *,
+        upstream_status: int | None = None,
+        body_snippet: str | None = None,
+    ) -> None:
+        self.upstream_status = upstream_status
+        self.body_snippet = body_snippet
+        super().__init__(detail)
+
+
+class AIProviderError(DomainError):
+    """Upstream chat/completions provider failure after retries."""
+
+    upstream_status: int | None
+    body_snippet: str | None
+
+    def __init__(
+        self,
+        detail: str,
+        *,
+        upstream_status: int | None = None,
+        body_snippet: str | None = None,
+    ) -> None:
+        self.upstream_status = upstream_status
+        self.body_snippet = body_snippet
+        super().__init__(detail)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
     async def pydantic_exc(request: Request, exc: ValidationError) -> JSONResponse:
@@ -120,6 +156,28 @@ def register_exception_handlers(app: FastAPI) -> None:
         exc: ValidationDomainError,
     ) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": exc.detail})
+
+    @app.exception_handler(EmbeddingError)
+    async def embedding_error_handler(request: Request, exc: EmbeddingError) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "detail": exc.detail,
+                "upstream_status": exc.upstream_status,
+                "body_snippet": exc.body_snippet,
+            },
+        )
+
+    @app.exception_handler(AIProviderError)
+    async def ai_provider_error_handler(request: Request, exc: AIProviderError) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "detail": exc.detail,
+                "upstream_status": exc.upstream_status,
+                "body_snippet": exc.body_snippet,
+            },
+        )
 
     @app.exception_handler(DomainError)
     async def domain_fallback(request: Request, exc: DomainError) -> JSONResponse:

@@ -6,6 +6,14 @@
 
 ---
 
+## Contracts from Week 3 (implementations must honour these)
+
+- **`RetrieverService.retrieve(query)`**: after stripping, **empty queries return `[]`** without embedding — the orchestrator must still enforce **non-empty user messages** on `POST /chat/message` (reject whitespace-only with **422**), so retrieval is never driven by accidental blanks.
+- **RAG + handoff**: “no chunks above threshold”, **zero retrieved results**, or off-topic retrieval should feed the existing **low-confidence / no context** handoff paths (Safety / analytics `rag_no_result` as applicable).
+- **Errors:** upstream failures surface as **`EmbeddingError` / `AIProviderError`** (Week 3) → map to appropriate HTTP/status in chat routes via existing error handlers.
+
+---
+
 ## Goal
 
 Chatbot works end-to-end: user sends a message, system retrieves context, generates AI response, detects handoff triggers, captures leads, and tracks analytics events.
@@ -528,7 +536,7 @@ class ChatOrchestrator:
         5. Run safety checks on user input
         6. If unsafe, return safety refusal
         7. Classify intent
-        8. Retrieve relevant knowledge via RAG
+        8. Retrieve relevant knowledge via RAG (skip retrieval if message is blank after strip — should not happen if step 1 validation is strict)
         9. Build prompt with context, history, safety rules
         10. Select model via model router
         11. Call AI provider
@@ -567,6 +575,7 @@ class HandoffInfo(BaseModel):
 ```
 
 **Constraints:**
+- Validate `request.message.strip()` early; **reject empty / whitespace-only** messages with **422** before embedding or retrieval
 - Do NOT call AI provider directly from routes
 - Do NOT put DB queries in this orchestrator — delegate to services
 - Do NOT skip safety checks
@@ -654,7 +663,7 @@ class ChatStartResponse(BaseModel):
 ```python
 class ChatMessageRequest(BaseModel):
     session_id: str
-    message: str  # Max 1000 chars
+    message: str  # Max 1000 chars; cannot be whitespace-only after strip (422)
     language: str = "en"
 ```
 
@@ -710,6 +719,16 @@ def test_chat_message_too_long(client):
     response = client.post("/api/v1/chat/message", json={
         "session_id": session_id,
         "message": "x" * 1001,
+    })
+    assert response.status_code == 422
+
+def test_chat_message_whitespace_only(client):
+    start = client.post("/api/v1/chat/start", json={"language": "en"})
+    session_id = start.json()["session_id"]
+    response = client.post("/api/v1/chat/message", json={
+        "session_id": session_id,
+        "message": "   \n\t  ",
+        "language": "en",
     })
     assert response.status_code == 422
 
@@ -985,6 +1004,7 @@ async def test_track_rag_no_result(db_session, conversation):
 - [ ] Chat orchestrator triggers handoff for no RAG context
 - [ ] Chat orchestrator blocks prompt injection
 - [ ] `/api/v1/chat/start` returns session ID and quick replies
+- [ ] `/api/v1/chat/message` rejects whitespace-only body (**422**)
 - [ ] `/api/v1/chat/message` returns AI response with sources
 - [ ] `/api/v1/chat/feedback` stores rating
 - [ ] Lead extractor extracts name/phone from messages

@@ -9,6 +9,7 @@ from jose import ExpiredSignatureError, JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.errors import (
     AccountInactiveError,
     ForbiddenError,
@@ -18,6 +19,8 @@ from app.core.errors import (
 from app.core.security import decode_access_token
 from app.db.models.user import User
 from app.db.session import get_db
+from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.ingestion import IngestionService
 
 DBSessionDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -73,3 +76,21 @@ def require_role(*allowed_roles: str):
 
 
 DashboardUser = Annotated[User, Depends(require_role("owner", "admin", "staff"))]
+
+
+def get_embedding_service() -> EmbeddingService:
+    settings = get_settings()
+    return EmbeddingService(api_key=settings.OPENAI_API_KEY, model=settings.EMBEDDING_MODEL)
+
+
+EmbeddingServiceDep = Annotated[EmbeddingService, Depends(get_embedding_service)]
+
+
+async def get_ingestion_service(
+    db: DBSessionDep,
+    embedding: EmbeddingServiceDep,
+) -> IngestionService:
+    return IngestionService(db, embedding)
+
+
+IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
