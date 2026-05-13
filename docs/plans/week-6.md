@@ -1,7 +1,7 @@
 # Week 6 — Deployment, Security Hardening, and Production Launch
 
 > **Status:** NOT STARTED
-> **Depends on:** Week 5 completed
+> **Depends on:** Week 5 completed (**including Task 5.0** authenticated admin REST: leads/conversations/analytics/settings … see **`docs/plans/week-5.md`**)
 > **Blocks:** None (final week)
 
 ---
@@ -50,11 +50,11 @@ apps/api/app/api/v1/leads.py  (add rate limit)
 
 | Endpoint | Limit | Window |
 |---|---|---|
-| POST /chat/message | 20 requests | per session per minute |
-| POST /chat/start | 5 requests | per session per minute |
-| POST /chat/feedback | 10 requests | per session per minute |
-| POST /leads | 3 requests | per IP per minute |
-| POST /admin/auth/login | *(Week 2)* | 5/min per IP — verify still enforced |
+| POST /api/v1/chat/message | 20 requests | per session per minute |
+| POST /api/v1/chat/start | 5 requests | per session per minute |
+| POST /api/v1/chat/feedback | 10 requests | per session per minute |
+| POST /api/v1/leads | 3 requests | per IP per minute |
+| POST /api/v1/admin/auth/login | *(Week 2)* | 5/min per IP — verify still enforced |
 
 **Implementation:**
 - Use an in-memory dict for MVP (no Redis)
@@ -297,14 +297,16 @@ apps/web/components/chat/ChatWidget.tsx  (add privacy notice)
 ```
 
 **Backend:**
-- Lead creation requires `consent: true`
-- Store consent timestamp with lead
-- Support manual deletion of leads and conversations via admin API (already have delete endpoints)
+
+- Lead **`POST /api/v1/leads`** already requires **`consent: true`** in the JSON body (**Week 4 shipped schema** … ensure UI sends it consistently).
+- **Consent timestamp (`consent_at`):** persist if not already (**migration** if absent) … aligns with audits and GDPR-ish hygiene.
+- **Admin DELETE:** add **`DELETE /api/v1/admin/leads/{id}`** (and optional conversation archival/delete) either in **Week 5 Task 5.0** or here in **Week 6.5** if deferred. Restrict to **`owner`** / **`admin`** only. Record routes in **`docs/API_CONTRACT.md`**.
 
 **Verification:**
+
 - Privacy notice visible in chat widget
 - Consent required for lead submission
-- Admin can delete leads
+- Admin **can delete** leads (and optionally conversations when delete API exists … see backend bullets above)
 
 ---
 
@@ -424,7 +426,7 @@ NEXT_PUBLIC_STUDIO_NAME=Krystal Tattoo Studio
 
 4. Configure build settings:
    - Framework: Next.js
-   - Build command: `pnpm build`
+   - **Install/build:** **`bun install --frozen-lockfile`** / **`bun run build`** when **`apps/web/bun.lock`** is canonical (this repo …); use **pnpm** only if CI standardizes **`pnpm-lock.yaml`** at the web root
    - Output directory: `.next`
 
 5. Deploy
@@ -470,10 +472,12 @@ NEXT_PUBLIC_STUDIO_NAME=Krystal Tattoo Studio
 | Admin chats | View chat history | Transcript shown |
 | Rate limiting | 21 messages in 1 min | 429 on 21st |
 | Rate limit headers | Check response headers | X-RateLimit-Remaining present |
-| Streaming chat | POST /chat/message/stream | SSE chunks received |
+| Streaming chat | `POST /api/v1/chat/message/stream` | SSE chunks received |
 | CORS | Request from unknown origin | Blocked |
 | Mobile | Full chat flow on phone | Works |
 | Slow network | Chat on 3G simulation | Works (maybe slow) |
+
+**Depends on Week 5:** Admin leads/chats smoke rows require **`docs/plans/week-5.md` Task 5.0** (authenticated admin REST + UI).
 
 ---
 
@@ -518,7 +522,7 @@ ls -la backups/
 
 **What:** **Baseline CI is Week 2 Task 2.9** (`.github/workflows/ci.yml` on push/PR to `main`). This task is **verification + extension only**:
 
-1. Confirm the workflow still matches repo reality (dependency paths: `requirements.txt` vs `pyproject.toml`, pnpm setup—prefer corepack over `npm install -g pnpm` per project norms).
+1. Confirm the workflow still matches repo reality (**`pyproject.toml`**, **`bun`** / lockfiles under **`apps/web`**, … avoid **`npm install -g pnpm`** unless CI requires corepack-managed **pnpm**).
 2. Add any **production-launch** gates you deferred (e.g. stricter env in CI, smoke step)—optional.
 
 **Do not** recreate a duplicate primary CI file unless Week 2 was skipped.
@@ -594,26 +598,34 @@ README.md
 
 ## Git Commit Strategy
 
+Stage **purposefully** (avoid **`git add -A`**):
+
 ```bash
 # After Task 6.1-6.3
-git add -A && git commit -m "feat(security): add rate limiting, CORS config, and structured logging"
+git add apps/api/app/core apps/api/app/main.py apps/api/app/api/v1/chat.py apps/api/app/api/v1/leads.py
+git commit -m "feat(security): add rate limiting, CORS config, and structured logging"
 
 # After Task 6.4-6.5
-git add -A && git commit -m "feat(security): add prompt injection tests and privacy consent"
+git add apps/api/app/tests apps/web/components/chat
+git commit -m "feat(security): add prompt injection tests and privacy consent"
 
 # After Task 6.6
-git add -A && git commit -m "feat(deploy): add production Dockerfile with health check"
+git add apps/api/Dockerfile
+git commit -m "feat(deploy): add production Dockerfile with health check"
 
 # After Task 6.7-6.8
-git add -A && git commit -m "feat(deploy): add Railway and Vercel deployment configs"
+git add apps/api/README.md Railway.toml vercel.json  # adjust to files you introduce
+git commit -m "feat(deploy): add Railway and Vercel deployment configs"
 
 # After Task 6.9-6.10
-git add -A && git commit -m "feat(deploy): add backup script and production smoke test guide"
+git add scripts/backup_db.sh docs/
+git commit -m "feat(deploy): add backup script and production smoke test guide"
 
 # After Task 6.11-6.12 (CI verify Week 2; README may be primary commit body)
-git add -A && git commit -m "docs(ci): verify GitHub Actions workflow and complete README"
+git add .github/workflows README.md
+git commit -m "docs(ci): verify GitHub Actions workflow and complete README"
 
-git push origin main
+git push origin <branch>
 ```
 
 ---
