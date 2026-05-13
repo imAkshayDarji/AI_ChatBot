@@ -1,6 +1,6 @@
 # Week 5 — Frontend Chat Widget and Admin Dashboard
 
-> **Status:** NOT STARTED
+> **Status:** COMPLETED
 > **Depends on:** Week 4 completed
 > **Blocks:** Week 6
 
@@ -13,9 +13,19 @@
 
 ---
 
+## Alignment (CEO review, 2026-05-13)
+
+- **Truthful dashboard:** Tasks 5.8 to 5.13 assume **authenticated admin HTTP APIs**, not mocks. **`apps/api/app/api/v1/router.py` today** exposes `health`, `admin/auth`, `admin/knowledge`, `chat/*`, **`POST`** `leads` only — no admin leads list, transcripts, aggregate analytics HTTP surface, or studio settings API. **`Task 5.0`** must land **before** those pages verify against “real data.”
+- **Source of truth for shapes:** Freeze request/response fields against **`docs/API_CONTRACT.md`** and existing SQLAlchemy models; extend the contract doc when Week 5 adds routes.
+- **Path prefix:** All browser and client calls use **`/api/v1/...`** (mounted in **`router.py`**). Short names like `/chat/start` in prose mean **`POST /api/v1/chat/start`**.
+- **Streaming:** SSE is **`POST /api/v1/chat/message/stream`**. Clients must use **`fetch()` + `ReadableStream` + SSE line parsing**. **Do not use `EventSource`** for this endpoint (GET-only, … no POST body).
+- **Package manager (`apps/web` has `bun.lock`):** Use **`cd apps/web && bun run build|lint|test`** for checks; `pnpm …` equivalents are fine if CI standardizes differently.
+
+---
+
 ## Goal
 
-Usable web MVP: customer-facing chat widget and admin dashboard. Both fully functional, mobile responsive, and connected to the backend.
+Usable web MVP: customer-facing chat widget and admin dashboard. Both fully functional, mobile responsive, and connected to the backend (**real admin APIs**, see Task 5.0).
 
 ---
 
@@ -31,18 +41,63 @@ Usable web MVP: customer-facing chat widget and admin dashboard. Both fully func
 
 ## Tasks
 
+### Task 5.0 — Admin backend REST (BLOCKING)
+
+**What:** Implement the **missing** authenticated admin endpoints so Weeks 5.8 to 5.13 (and **`ApiClient` admin methods**) call real backends. Reuse **`Depends`** RBAC (`owner` / `admin` / `staff`) from **`apps/api/app/api/deps.py`**.
+
+**Suggested modules (adjust names if you collapse routers):**
+
+```
+apps/api/app/api/v1/admin_leads.py
+apps/api/app/api/v1/admin_conversations.py
+apps/api/app/api/v1/admin_analytics.py
+apps/api/app/api/v1/admin_settings.py   (optional single table + migration)
+apps/api/app/api/v1/router.py           # include_* new routers
+apps/api/app/tests/integration/*.py      # RBAC denial + happy path per area
+```
+
+**Route sketch (`/api/v1` prefix inherited from `router.py`):**
+
+| Area | Verb + path | Notes |
+|------|-------------|--------|
+| Leads admin | **`GET`** `/admin/leads` | Pagination + filters (`status`, date range, `service_interest`); map to **`Lead`** model |
+| Leads admin | **`GET`** `/admin/leads/{lead_id}` | Detail for expanded row |
+| Leads admin | **`PATCH`** `/admin/leads/{lead_id}` | Status transitions per Week 5.9 (`new` … `closed`) |
+| Chats admin | **`GET`** `/admin/conversations` | List (**session_id**/id, language, message count, started_at, linked lead); pagination |
+| Chats admin | **`GET`** `/admin/conversations/{conversation_id}` | Full transcript incl. intents, sources, handoff/leads flags as stored (**read** persisted messages/metadata) |
+| Analytics | **`GET`** `/admin/analytics/overview` | KPIs backing dashboard cards (conversation/lead counts, handoffs, failures, …) using **`analytics_events`** and/or existing tables |
+| Analytics | **`GET`** `/admin/analytics/intents/popular` | Top intents (bounded) |
+| Analytics | **`GET`** `/admin/analytics/queries/failed` | “Failed/low confidence” style rows from persisted signals (`rag_no_result`, etc.) — align names with DB |
+| Studio settings | **`GET`** `/admin/settings/studio` | Values needed by Task 5.13 (phone, IG URL, welcome, quick replies, brand colors …) |
+| Studio settings | **`PATCH`** `/admin/settings/studio` | If no row exists yet, add **Alembic migration** (e.g. `studio_settings` single-row or keyed JSON) … **cannot** ship a write-only UI with nothing to PATCH |
+
+**Constraints:**
+
+- Pagination and filter params consistent with **`GET /admin/knowledge`** patterns.
+- **No N+1** on list endpoints (use **`selectinload`/`joinedload`** or aggregate SQL as appropriate).
+- **DELETE** leads/conversations: **optional in Week 5**; **`docs/plans/week-6.md`** Task 6.5 assumes admin delete capability — implement delete here if timeboxed or defer explicitly to Week 6.
+
+**Verification:**
+
+- **`pytest`** integration: unauthenticated **`401`**, authenticated **`200`** slices per router.
+- **Manual:** each new path returns JSON that matches **`docs/API_CONTRACT.md`** updates you add for Week 5.
+
+---
+
 ### Task 5.1 — API Client Library
 
-**What:** Create the centralized API client for all frontend-backend communication.
+**What:** **Extend** the centralized API client (**`apps/web/lib/api.ts`** already exposes minimalist **`apiGet` / `apiPost`** helpers; **`types/api.ts`** currently **`HealthResponse` only**) for all frontend-to-backend traffic.
 
-**Files to create:**
+**Files:**
 
 ```
-apps/web/lib/api.ts
-apps/web/lib/auth.ts
-apps/web/lib/constants.ts
-apps/web/types/api.ts
+apps/web/lib/api.ts           # extend (do not orphan existing helpers unless replacing deliberately)
+apps/web/lib/auth.ts          # create
+apps/web/lib/constants.ts     # create
+apps/web/types/api.ts        # extend
 ```
+
+**Imports:** Prefer **`@/…`** aliases per project **`PLAN.md`** / ESLint conventions.
 
 **api.ts:**
 
@@ -162,13 +217,15 @@ export interface AnalyticsOverview { ... }
 ```
 
 **Constraints:**
-- All API calls go through this single client
-- No hardcoded URLs — use `NEXT_PUBLIC_API_URL`
-- Handle 401 on admin routes → attempt refresh (`POST /admin/auth/refresh`), then redirect to login if refresh fails
+- All API calls go through this single client (**class + helpers** acceptable; avoid duplicating two competing clients)
+- **`NEXT_PUBLIC_API_URL`** is the origin only (**no trailing `/api/v1`**); each method prefixes paths with **`/api/v1`** where applicable
+- Handle 401 on admin routes → attempt refresh (**`POST /api/v1/admin/auth/refresh`**), then redirect to login if refresh fails
 - Handle network errors gracefully
 - TypeScript strict types for all responses
-- Streaming uses `EventSource` or `fetch` with `ReadableStream` — no external SSE library needed
+- **`streamMessage`:** **`fetch()` POST** to **`/api/v1/chat/message/stream`**, consume **`ReadableStream`**, incrementally parse **`data:`** SSE chunks (buffer partial lines across reads). Use **`AbortController`** for cancel/unmount. **Do not use `EventSource`.** Vitest-covered parser helper strongly recommended.
 - Handle rate limit headers (`X-RateLimit-Remaining`, `X-RateLimit-Reset`) from responses
+
+**JWT in `localStorage`:** Acceptable MVP; pair with CSP/dependency hygiene. **HTTP-only cookie auth** stays future hardening (**`TODOS.md` / Week 6** narrative).
 
 **Verification:**
 - TypeScript compiles without errors
@@ -232,7 +289,12 @@ Features:
 - Assistant messages left-aligned, light background
 - Source references shown as collapsible "Sources" link
 - Handoff card shown inline when applicable (with phone/Instagram links)
-- Markdown rendering for assistant messages (bold, lists)
+- Markdown rendering for assistant messages (**`react-markdown`** or equivalent with **tight allow-list**; Week 4 already sanitizes on server … do not **`dangerouslySetInnerHTML`** with raw model output)
+
+**Streaming / UX edge cases:**
+
+- **`AbortController`:** abort in-flight **`streamMessage`** on panel close/navigate-away
+- **Double-send:** disable send while a turn is streaming or debounce (**idempotent**/single-flight UX)
 - Timestamp shown below each message
 
 **QuickReplies.tsx:**
@@ -311,10 +373,11 @@ apps/web/components/chat/LeadCaptureForm.tsx
 
 **Features:**
 - Triggered by "lead_capture_suggested" flag in AI response
-- Fields: name, email, phone, service_interest (optional)
+- Fields: name, email, phone, service_interest (optional), **`preferred_language`** aligned with **`ChatWidget`** (**`en`/`hi`/`gu`** per backend **`LeadCreateRequest`**)
 - Consent checkbox: "By submitting your details, you agree that the studio can contact you about your enquiry."
+- **JSON body MUST include **`consent: true`** (literal **`true`** per backend **`LeadCreateRequest`** … unchecked submit is invalid)**
 - Client-side validation (email format, required fields)
-- Submit to `/api/v1/leads`
+- Submit to **`POST /api/v1/leads`** with **`Content-Type: application/json`**
 - Success/error feedback
 - Form resets after submission
 
@@ -409,7 +472,7 @@ apps/web/components/admin/AdminLayout.tsx
 
 **Features:**
 - Email and password form
-- Submit to `admin/auth/login`
+- Submit to **`POST /api/v1/admin/auth/login`**
 - Store JWT in localStorage
 - Redirect to `/admin/dashboard` on success
 - Show error message on failure
@@ -454,6 +517,8 @@ apps/web/components/admin/AnalyticsCards.tsx
 - Each card: title, value, trend indicator (up/down)
 
 **Verification:**
+
+- **Depends on Task 5.0** analytics/overview routes
 - Dashboard loads with real data from API
 - Stat cards show correct numbers
 - Protected by auth
@@ -481,6 +546,9 @@ apps/web/components/admin/LeadTable.tsx
 - Export to CSV button (future, just placeholder for MVP)
 
 **Verification:**
+
+- **Depends on Task 5.0** leads admin routes
+
 - Leads table renders with data
 - Can update lead status
 - Can filter by status
@@ -511,6 +579,9 @@ apps/web/components/admin/ChatTranscript.tsx
 - Pagination
 
 **Verification:**
+
+- **Depends on Task 5.0** conversations routes
+
 - Chat list loads
 - Clicking a conversation shows full transcript
 - Messages render with metadata
@@ -576,6 +647,9 @@ apps/web/app/admin/analytics/page.tsx
 **Note:** Use simple tables/cards for MVP. Charts can use a lightweight library or just CSS bars.
 
 **Verification:**
+
+- **Depends on Task 5.0** analytics routes
+
 - Analytics page loads with real data
 - All metrics render correctly
 
@@ -603,6 +677,9 @@ apps/web/app/admin/settings/page.tsx
 **Note:** For MVP, settings are read-only or minimal. Full settings management is Phase 2.
 
 **Verification:**
+
+- **Depends on Task 5.0** settings routes (+ migration when writes enabled)
+
 - Settings page loads
 - Current settings display correctly
 
@@ -611,13 +688,17 @@ apps/web/app/admin/settings/page.tsx
 ## Testing Checklist (Run After ALL Tasks Complete)
 
 ### Frontend Tests
-- [ ] TypeScript compiles without errors: `pnpm build`
-- [ ] Lint passes: `pnpm lint`
+
+From **`apps/web`** (canonical: **`bun.lock`**):
+
+- [ ] TypeScript build: `bun run build` (or `pnpm build` if CI uses **pnpm`)
+- [ ] Lint: `bun run lint`
+- [ ] Unit tests: `bun run test`
 - [ ] Chat widget renders on main page
 - [ ] Chat bubble opens chat panel
 - [ ] Can send a message and receive AI response
 - [ ] Streaming responses display word-by-word
-- [ ] Static quick replies work (from /chat/start)
+- [ ] Static quick replies work (from **`POST /api/v1/chat/start`**)
 - [ ] Dynamic suggested replies replace static options after AI response
 - [ ] Language selector switches languages
 - [ ] Lead capture form validates and submits
@@ -634,7 +715,8 @@ apps/web/app/admin/settings/page.tsx
 - [ ] Admin settings page shows current settings
 - [ ] All admin pages require authentication
 - [ ] Unauthorized users redirected to login
-- [ ] Channel field ("web") passed to /chat/start
+- [ ] Channel **`"web"`** passed to **`POST /api/v1/chat/start`**
+- [ ] **Task 5.0** merged: admin API integration tests green in CI (**`pytest`**)
 
 ### Manual Cross-Browser Test
 - [ ] Chrome (latest)
@@ -646,32 +728,46 @@ apps/web/app/admin/settings/page.tsx
 
 ## Git Commit Strategy
 
+Stage **intentionally** (**avoid `git add -A`** in shared branches … reduces accidental secret or noise commits):
+
 ```bash
+# After Task 5.0
+git add apps/api/app/api/v1/admin_*.py apps/api/app/api/v1/router.py apps/api/alembic/versions/*_studio*.py apps/api/app/tests/integration/…
+git commit -m "feat(api): add admin leads, conversations, analytics, settings routes"
+
 # After Task 5.1
-git add -A && git commit -m "feat(web): add centralized API client and TypeScript types"
+git add apps/web/lib/api.ts apps/web/lib/auth.ts apps/web/types/api.ts …
+git commit -m "feat(web): extend API client, auth helpers, and types"
 
 # After Task 5.2-5.5
-git add -A && git commit -m "feat(web): add chat widget, language selector, lead form, and handoff card"
+git add apps/web/components/chat …
+git commit -m "feat(web): add chat widget, language selector, lead form, handoff card"
 
 # After Task 5.6
-git add -A && git commit -m "feat(web): integrate chat widget on main landing page"
+git add apps/web/app/page.tsx apps/web/app/layout.tsx …
+git commit -m "feat(web): integrate chat widget on landing page"
 
 # After Task 5.7-5.8
-git add -A && git commit -m "feat(web): add admin login, layout, and dashboard overview"
+git add apps/web/app/admin apps/web/components/admin …
+git commit -m "feat(web): add admin login, layout, dashboard overview"
 
 # After Task 5.9-5.10
-git add -A && git commit -m "feat(web): add admin leads table and chat history viewer"
+git add apps/web/app/admin/leads … apps/web/app/admin/chats …
+git commit -m "feat(web): admin leads and chat history"
 
 # After Task 5.11-5.13
-git add -A && git commit -m "feat(web): add admin knowledge editor, analytics, and settings pages"
+git add apps/web/app/admin/knowledge … apps/web/app/admin/analytics … apps/web/app/admin/settings …
+git commit -m "feat(web): admin knowledge, analytics, settings"
 
-git push origin main
+# Push when ready (use your branch workflow)
+git push origin <branch>
 ```
 
 ---
 
 ## After Week 5 Completion
 
+- [ ] Update **`docs/API_CONTRACT.md`** … all **Task 5.0** routes + types the web client uses
 - [ ] Update PLAN.md checklist — mark Phase 13, 14 items as done
 - [ ] Update this file's status to COMPLETED
 - [ ] Proceed to `docs/plans/week-6.md`

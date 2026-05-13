@@ -2929,9 +2929,9 @@ Manually verify secrets and production settings.
 [x] Build chat APIs
 [x] Build lead capture
 [x] Build analytics events
-[ ] Build admin APIs
-[ ] Build chat widget
-[ ] Build admin dashboard
+[x] Build admin APIs
+[x] Build chat widget
+[x] Build admin dashboard
 [x] Add tests
 [ ] Deploy backend to Railway
 [ ] Deploy frontend to Vercel
@@ -3022,8 +3022,8 @@ Each week has a detailed plan file with tasks, tests, and verification:
 | Week 1 | [docs/plans/week-1.md](docs/plans/week-1.md) — Architecture, Planning, Foundation | COMPLETED |
 | Week 2 | [docs/plans/week-2.md](docs/plans/week-2.md) — Database, Auth, Knowledge Management | COMPLETED |
 | Week 3 | [docs/plans/week-3.md](docs/plans/week-3.md) — RAG Pipeline and AI Core | COMPLETED |
-| Week 4 | [docs/plans/week-4.md](docs/plans/week-4.md) — Chat Orchestration, Leads, Analytics | NOT STARTED |
-| Week 5 | [docs/plans/week-5.md](docs/plans/week-5.md) — Frontend Chat Widget and Admin Dashboard | NOT STARTED |
+| Week 4 | [docs/plans/week-4.md](docs/plans/week-4.md) — Chat Orchestration, Leads, Analytics | COMPLETED |
+| Week 5 | [docs/plans/week-5.md](docs/plans/week-5.md) — Frontend Chat Widget and Admin Dashboard | COMPLETED |
 | Week 6 | [docs/plans/week-6.md](docs/plans/week-6.md) — Deployment, Security, Production Launch | NOT STARTED |
 
 ## Implementation Workflow Rules
@@ -3057,7 +3057,7 @@ After completing ALL tasks in a week:
 | Week 2 | 2026-05-13 | 2026-05-13 | COMPLETED | Database, Auth, Knowledge Management |
 | Week 3 | 2026-05-13 | 2026-05-13 | COMPLETED | Phases 6–8 delivered: ingestion, retrieval, AI provider |
 | Week 4 | 2026-05-13 | 2026-05-13 | COMPLETED | Chat orchestration, APIs, leads, analytics, feedback 1–5 migration; see `docs/plans/week-4.md` |
-| Week 5 | — | — | NOT STARTED | Frontend Chat Widget and Admin Dashboard |
+| Week 5 | 2026-05-13 | 2026-05-13 | COMPLETED | Frontend chat widget, admin dashboard, API client; see `docs/plans/week-5.md` |
 | Week 6 | — | — | NOT STARTED | Deployment, Security, Production Launch |
 
 ## Updated Checklist
@@ -3088,9 +3088,9 @@ After completing ALL tasks in a week:
 [x] Build chat APIs
 [x] Build lead capture
 [x] Build analytics events
-[ ] Build admin APIs
-[ ] Build chat widget
-[ ] Build admin dashboard
+[x] Build admin APIs
+[x] Build chat widget
+[x] Build admin dashboard
 [x] Add tests
 [ ] Deploy backend to Railway
 [ ] Deploy frontend to Vercel
