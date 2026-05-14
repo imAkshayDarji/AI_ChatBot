@@ -70,9 +70,9 @@ jobs:
         run: npm i -g @railway/cli
       - name: Deploy backend to Railway
         working-directory: apps/api
-        run: railway up --service krystal-api --ci
+        run: railway up --service krystal-api --project 75cd113c-8996-49a3-bab2-69a1de980ef0 --environment production --ci
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   deploy-frontend:
     needs: frontend
