@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -11,6 +12,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str = (
         "postgresql+asyncpg://krystal:krystal_dev_password@localhost:5432/krystal_studio"
     )
+
+    @model_validator(mode="after")
+    def _ensure_async_db_url(self) -> "Settings":
+        if self.DATABASE_URL.startswith("postgresql://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        return self
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

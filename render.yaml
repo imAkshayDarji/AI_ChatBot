@@ -1,0 +1,62 @@
+databases:
+  - name: krystal-studio-db
+    databaseName: krystal_studio
+    user: krystal
+    plan: basic-256mb
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow all
+
+services:
+  - type: web
+    name: krystal-studio-api
+    runtime: docker
+    repo: https://github.com/imAkshayDarji/AI_ChatBot
+    rootDir: apps/api
+    plan: starter
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    preDeployCommand: bash /app/scripts/migrate.sh
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: krystal-studio-db
+          property: connectionString
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ENVIRONMENT
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      - key: LOGIN_RATE_LIMIT_ATTEMPTS
+        value: "5"
+      - key: LOGIN_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: AI_PROVIDER
+        value: openai
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CHAT_MODEL
+        value: gpt-4o-mini
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-large
+      - key: CORS_ORIGINS
+        sync: false
+      - key: STUDIO_PHONE
+        value: "+91-XXXX-XXXXXX"
+      - key: STUDIO_INSTAGRAM_URL
+        value: https://www.instagram.com/krystaltattoostudio
+      - key: STUDIO_NAME
+        value: "Krystal Tattoo Studio"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SENTRY_DSN
+        value: ""
