@@ -49,7 +49,7 @@ class JsonLogFormatter(logging.Formatter):
         for attr_name, value in record.__dict__.items():
             if attr_name in _LOGRECORD_STANDARD_ATTRS or attr_name.startswith("_"):
                 continue
-            if isinstance(value, (str, int, float, bool, type(None))):
+            if isinstance(value, str | int | float | bool | type(None)):
                 extras[attr_name] = value
 
         message = redact_pii(record.getMessage())
