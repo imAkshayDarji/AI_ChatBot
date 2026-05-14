@@ -77,7 +77,10 @@ def _mock_handle(case: dict) -> ChatMessageResponse:
         return _refusal_response()
     if case.get("expected_handoff"):
         return _handoff_response()
-    return _MOCK_MAP.get(case.get("expected_intent", ""), _normal_response("general", "How can I help?"))
+    return _MOCK_MAP.get(
+        case.get("expected_intent", ""),
+        _normal_response("general", "How can I help?"),
+    )
 
 
 @pytest.fixture(params=_load_cases(), ids=lambda c: c["input"][:40])
