@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Response
 from sqlalchemy import func, select
 
-from app.api.deps import DashboardUser, OwnerAdminUser, DBSessionDep
+from app.api.deps import DashboardUser, DBSessionDep, OwnerAdminUser
 from app.core.errors import NotFoundError, ValidationDomainError
 from app.db.models.lead import Lead
 from app.schemas.admin_leads import (

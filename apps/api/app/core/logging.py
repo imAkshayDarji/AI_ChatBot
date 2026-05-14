@@ -9,7 +9,6 @@ import sys
 from datetime import UTC, datetime
 from typing import Any, Final
 
-
 _EMAIL_RE: Final[re.Pattern[str]] = re.compile(
     r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
 )
