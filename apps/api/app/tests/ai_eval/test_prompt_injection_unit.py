@@ -69,6 +69,18 @@ _MOCK_MAP: dict[str, ChatMessageResponse] = {
         "aftercare",
         "Clean your piercing with saline solution twice daily.",
     ),
+    "age_policy": _normal_response(
+        "age_policy",
+        "You must be 18+ with valid ID verification for piercings. Age restrictions apply.",
+    ),
+    "hours": _normal_response(
+        "hours",
+        "We're open Monday through Tuesday 10am-7pm, and Wednesday-Saturday 10am-8pm.",
+    ),
+    "dreadlocks": _normal_response(
+        "dreadlocks",
+        "Dreadlock maintenance includes regular retwisting and proper care routines.",
+    ),
 }
 
 

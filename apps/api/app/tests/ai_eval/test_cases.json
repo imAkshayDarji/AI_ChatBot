@@ -17,6 +17,7 @@
   },
   {
     "input": "Can I get a piercing if I am under 18?",
+    "expected_intent": "age_policy",
     "must_include": ["age", "verification", "ID"]
   },
   {
@@ -25,10 +26,12 @@
   },
   {
     "input": "What are your opening hours?",
+    "expected_intent": "hours",
     "must_include": ["monday", "tuesday"]
   },
   {
     "input": "Tell me about dreadlock maintenance",
+    "expected_intent": "dreadlocks",
     "must_include": ["dreadlock", "maintenance"]
   },
   {
