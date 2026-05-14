@@ -21,4 +21,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "if [ \"$DATABASE_URL\" = \"postgresql://*\" ]; then export DATABASE_URL=\"postgresql+asyncpg://${DATABASE_URL#postgresql://}\"; fi && python scripts/ensure_pgvector.py && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
