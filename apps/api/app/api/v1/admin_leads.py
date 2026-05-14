@@ -6,7 +6,7 @@ import math
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from sqlalchemy import func, select
 
 from app.api.deps import DashboardUser, OwnerAdminUser, DBSessionDep
@@ -96,14 +96,15 @@ async def update_lead(
     return AdminLeadResponse.model_validate(lead)
 
 
-@router.delete("/{lead_id}", status_code=204)
+@router.delete("/{lead_id}", status_code=204, response_class=Response)
 async def delete_lead(
     lead_id: UUID,
     db: DBSessionDep,
     _user: OwnerAdminUser,
-) -> None:
+) -> Response:
     lead = await db.get(Lead, lead_id)
     if lead is None:
         raise NotFoundError("Lead not found")
     await db.delete(lead)
     await db.flush()
+    return Response(status_code=204)

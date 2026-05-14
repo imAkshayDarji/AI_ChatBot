@@ -51,7 +51,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                         "status_code": 500,
                         "latency_ms": duration_ms,
                         "error_type": type(exc).__name__,
-                        "message": "unhandled_exception",
+                        "msg_type": "unhandled_exception",
                     },
                 )
             else:
@@ -75,7 +75,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "endpoint": endpoint,
                     "status_code": response.status_code,
                     "latency_ms": duration_ms,
-                    "message": "ok",
+                    "msg_type": "ok",
                 },
             )
         else:
