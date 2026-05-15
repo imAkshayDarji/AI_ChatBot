@@ -192,6 +192,16 @@ export interface ReindexResponse {
   chunk_count: number;
 }
 
+export interface KnowledgeChunkResponse {
+  id: string;
+  document_id: string;
+  chunk_text: string;
+  chunk_index: number;
+  service_type: string;
+  language: string | null;
+  created_at: string;
+}
+
 export interface ServiceCount {
   service: string;
   count: number;

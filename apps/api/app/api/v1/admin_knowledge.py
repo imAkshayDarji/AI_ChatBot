@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import DashboardUser, DBSessionDep, IngestionServiceDep
 from app.schemas.knowledge import (
+    KnowledgeChunkResponse,
     KnowledgeDocumentCreate,
     KnowledgeDocumentResponse,
     KnowledgeDocumentUpdate,
@@ -14,6 +15,7 @@ from app.schemas.knowledge import (
 )
 from app.services import knowledge_document_service
 from app.services.audit import append_audit_log
+from app.services.chat.cache import response_cache
 
 router = APIRouter(prefix="/admin/knowledge", tags=["admin-knowledge"])
 
@@ -50,6 +52,7 @@ async def create_knowledge_document(
     )
     if body.status == "active":
         await ingestion.ingest_document(doc)
+        response_cache.invalidate_all()
     await db.commit()
     await db.refresh(doc)
     return KnowledgeDocumentResponse.model_validate(doc)
@@ -63,6 +66,16 @@ async def get_knowledge_document(
 ) -> KnowledgeDocumentResponse:
     doc = await knowledge_document_service.get_document_or_404(db, document_id)
     return KnowledgeDocumentResponse.model_validate(doc)
+
+
+@router.get("/{document_id}/chunks", response_model=list[KnowledgeChunkResponse])
+async def list_knowledge_chunks(
+    document_id: UUID,
+    db: DBSessionDep,
+    user: DashboardUser,
+) -> list[KnowledgeChunkResponse]:
+    chunks = await knowledge_document_service.list_chunks_for_document(db, document_id)
+    return [KnowledgeChunkResponse.model_validate(c) for c in chunks]
 
 
 @router.patch("/{document_id}", response_model=KnowledgeDocumentResponse)
@@ -84,6 +97,7 @@ async def update_knowledge_document(
     )
     if doc.status == "active":
         await ingestion.ingest_document(doc)
+        response_cache.invalidate_all()
     await db.commit()
     await db.refresh(doc)
     return KnowledgeDocumentResponse.model_validate(doc)
@@ -116,6 +130,7 @@ async def reindex_knowledge_document(
 ) -> dict[str, object]:
     document = await knowledge_document_service.get_document_or_404(db, document_id)
     chunks = await ingestion.ingest_document(document)
+    response_cache.invalidate_all()
     await append_audit_log(
         db,
         user_id=user.id,

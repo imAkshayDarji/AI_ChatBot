@@ -14,6 +14,7 @@ import type {
   ConversationDetail,
   ConversationListItem,
   FailedQueryItem,
+  KnowledgeChunkResponse,
   KnowledgeDocument,
   KnowledgeDocumentCreate,
   KnowledgeDocumentUpdate,
@@ -274,6 +275,10 @@ class ApiClient {
     return this.request<ReindexResponse>(`/admin/knowledge/${id}/reindex`, {
       method: "POST",
     });
+  }
+
+  async listKnowledgeChunks(id: string): Promise<KnowledgeChunkResponse[]> {
+    return this.request<KnowledgeChunkResponse[]>(`/admin/knowledge/${id}/chunks`);
   }
 
   async listLeads(params?: ListParams): Promise<PaginatedResponse<AdminLeadResponse>> {

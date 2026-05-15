@@ -2,6 +2,7 @@
 
 import { type HandoffInfo, type SourceReference } from "@/types/api";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -24,7 +25,13 @@ export function MessageBubble({ role, content, timestamp, sources, handoff }: Me
             : "bg-zinc-800 text-zinc-100 rounded-bl-sm"
         }`}
       >
-        <div className="text-sm leading-relaxed whitespace-pre-wrap">{content}</div>
+        {isUser ? (
+          <div className="text-sm leading-relaxed whitespace-pre-wrap">{content}</div>
+        ) : (
+          <div className="text-sm leading-relaxed prose prose-invert prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
+        )}
 
         {handoff?.should_handoff && (
           <div className="mt-2 rounded-lg bg-zinc-700/50 border border-zinc-600 p-3">

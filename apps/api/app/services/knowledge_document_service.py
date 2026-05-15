@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import KnowledgeStatusTransitionError, NotFoundError, ValidationDomainError
-from app.db.models.knowledge import KnowledgeDocument
+from app.db.models.knowledge import KnowledgeChunk, KnowledgeDocument, compute_content_hash
 from app.schemas.knowledge import KnowledgeDocumentCreate, KnowledgeDocumentUpdate
 
 _VALID_SOURCE_TYPES = frozenset({"manual", "website", "pdf", "faq"})
@@ -54,6 +54,7 @@ async def create_document(
         status=data.status,
         source_url=data.source_url,
         metadata_json=data.metadata_json,
+        content_hash=compute_content_hash(data.content),
     )
     session.add(doc)
     await session.flush()
@@ -112,6 +113,7 @@ async def update_document(
         doc.language = data.language
     if data.content is not None:
         doc.content = data.content
+        doc.content_hash = compute_content_hash(data.content)
     if data.source_url is not None:
         doc.source_url = data.source_url
     if data.metadata_json is not None:
@@ -129,3 +131,17 @@ async def delete_document(session: AsyncSession, document_id: uuid.UUID) -> None
     doc = await get_document_or_404(session, document_id)
     await session.delete(doc)
     await session.flush()
+
+
+async def list_chunks_for_document(
+    session: AsyncSession,
+    document_id: uuid.UUID,
+) -> list[KnowledgeChunk]:
+    await get_document_or_404(session, document_id)
+    stmt = (
+        select(KnowledgeChunk)
+        .where(KnowledgeChunk.document_id == document_id)
+        .order_by(KnowledgeChunk.chunk_index)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())

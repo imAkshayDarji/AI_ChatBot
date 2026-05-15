@@ -31,6 +31,7 @@ export function ChatWidget() {
   const [showLeadForm, setShowLeadForm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const languageRef = useRef(language);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,22 +69,18 @@ export function ChatWidget() {
   }, []);
 
   useEffect(() => {
-    const savedLang = localStorage.getItem("krystal_language") || "en";
-    void Promise.resolve().then(() => {
-      setLanguage(savedLang);
-      startChat(savedLang);
-    });
+    if (!open || sessionId) return;
+    setLanguage("en");
+    startChat("en");
   }, [open, sessionId, startChat]);
 
   const handleLanguageChange = useCallback(
     (newLang: string) => {
       setLanguage(newLang);
+      languageRef.current = newLang;
       localStorage.setItem("krystal_language", newLang);
-      setSessionId(null);
-      setMessages([]);
-      startChat(newLang);
     },
-    [startChat]
+    []
   );
 
   const handleSend = useCallback(
@@ -108,7 +105,7 @@ export function ChatWidget() {
       try {
         let fullContent = "";
 
-        for await (const chunk of api.streamMessage(sessionId, text, language, controller.signal)) {
+        for await (const chunk of api.streamMessage(sessionId, text, languageRef.current, controller.signal)) {
           if (chunk.event === "chunk" && "content" in chunk.data) {
             fullContent += (chunk.data as { content: string }).content;
             setStreamingContent(fullContent);
@@ -153,7 +150,7 @@ export function ChatWidget() {
         abortRef.current = null;
       }
     },
-    [sessionId, isLoading, language]
+    [sessionId, isLoading]
   );
 
   const handleQuickReply = useCallback(

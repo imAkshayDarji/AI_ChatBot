@@ -106,3 +106,21 @@
 - **Priority:** P2
 - **Depends on:** Week 4 completion
 - **Added:** 2026-05-13 (CEO review of Week 4)
+
+## [P3] Admin health / ops dashboard (API + DB + optional OpenAI)
+- **What:** Admin-only page or JSON endpoint summarising API reachability, DB connectivity, optional cached OpenAI ping (related to the P2 `/health` improvement in TODOS).
+- **Why:** Sentry covers crashes; this gives a single internal place to see “is prod green?” without opening three dashboards.
+- **Context:** Skipped in Week 6 CEO SELECTIVE EXPANSION as non-launch-blocking.
+- **Effort:** M
+- **Priority:** P3
+- **Depends on:** Week 6 production deploy
+- **Added:** 2026-05-13 (CEO review of Week 6)
+
+## [P3] Startup validation of required environment variables
+- **What:** On FastAPI startup (beyond today’s `JWT_SECRET` production check), fail fast with a clear list of missing vars for OpenAI, DB URL, CORS, etc.
+- **Why:** Catches misconfigured deploys before traffic hits confusing 500s.
+- **Context:** Skipped in Week 6 CEO review in favour of Sentry + docs; still useful post-launch.
+- **Effort:** S
+- **Priority:** P3
+- **Depends on:** None
+- **Added:** 2026-05-13 (CEO review of Week 6)

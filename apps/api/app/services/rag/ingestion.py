@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationDomainError
-from app.db.models.knowledge import KnowledgeChunk, KnowledgeDocument
+from app.db.models.knowledge import KnowledgeChunk, KnowledgeDocument, compute_content_hash
 from app.services.rag.chunker import Chunk, Chunker
 from app.services.rag.cleaner import clean_text
 from app.services.rag.embeddings import SupportsEmbeddings
@@ -45,6 +45,12 @@ class IngestionService:
                 "Knowledge document content is empty or whitespace-only; refusing to reindex",
             )
 
+        new_hash = compute_content_hash(document.content)
+        if document.content_hash == new_hash:
+            existing = await self._load_existing_chunks(document.id)
+            if existing:
+                return existing
+
         cleaned = clean_text(document.content)
         if not cleaned.strip():
             raise ValidationDomainError("Knowledge document content is empty after cleaning")
@@ -78,10 +84,34 @@ class IngestionService:
             self._db.add(row)
             rows.append(row)
 
+        document.content_hash = new_hash
         await self._db.flush()
+
+        chunk_ids = [str(row.id) for row in rows]
+        if chunk_ids:
+            id_list = ",".join(f"'{cid}'" for cid in chunk_ids)
+            await self._db.execute(
+                text(
+                    f"UPDATE knowledge_chunks SET search_tsvector = "
+                    f"to_tsvector('english', chunk_text) WHERE id IN ({id_list})"
+                )
+            )
+            await self._db.flush()
+
         for row in rows:
             await self._db.refresh(row)
         return rows
+
+    async def _load_existing_chunks(self, document_id: uuid.UUID) -> list[KnowledgeChunk]:
+        from sqlalchemy import select
+
+        stmt = (
+            select(KnowledgeChunk)
+            .where(KnowledgeChunk.document_id == document_id)
+            .order_by(KnowledgeChunk.chunk_index)
+        )
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all())
 
     async def delete_document_chunks(self, document_id: uuid.UUID) -> int:
         result = await self._db.execute(

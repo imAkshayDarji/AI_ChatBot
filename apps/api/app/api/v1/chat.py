@@ -53,11 +53,32 @@ async def chat_start(
     tracker = AnalyticsTracker()
     await tracker.track_chat_started(db, conv.id, body.language, channel=body.channel)
 
-    welcome = (
-        f"Hey! Welcome to {settings.STUDIO_NAME}. "
-        "What would you like to know — tattoos, piercings, dreadlocks, or booking?"
-    )
-    quick = ["Tattoo pricing", "Piercing info", "Aftercare", "Book consultation"]
+    localized = {
+        "en": {
+            "welcome": (
+                f"Hey! Welcome to {settings.STUDIO_NAME}. "
+                "What would you like to know — tattoos, piercings, dreadlocks, or booking?"
+            ),
+            "quick": ["Tattoo pricing", "Piercing info", "Aftercare", "Book consultation"],
+        },
+        "hi": {
+            "welcome": (
+                f"नमस्ते! {settings.STUDIO_NAME} में आपका स्वागत है। "
+                "आप क्या जानना चाहेंगे — टैटू, पियर्सिंग, ड्रेडलॉक्स, या बुकिंग?"
+            ),
+            "quick": ["टैटू की कीमत", "पियर्सिंग जानकारी", "बाद में देखभाल", "कंसल्टेशन बुक करें"],
+        },
+        "gu": {
+            "welcome": (
+                f"નમસ્તે! {settings.STUDIO_NAME} માં આપનું સ્વાગત છે. "
+                "તમે શું જાણવા માંગો છો — ટેટૂ, પિઅર્સિંગ, ડ્રેડલોક્સ, કે બુકિંગ?"
+            ),
+            "quick": ["ટેટૂની કિંમત", "પિઅર્સિંગ માહિતી", "પછીની સંભાળ", "કન્સલ્ટેશન બુક કરો"],
+        },
+    }
+    lang = body.language if body.language in localized else "en"
+    welcome = localized[lang]["welcome"]
+    quick = localized[lang]["quick"]
     return ChatStartResponse(session_id=session_id_str, message=welcome, quick_replies=quick)
 
 

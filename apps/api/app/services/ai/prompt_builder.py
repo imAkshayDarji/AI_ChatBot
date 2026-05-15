@@ -51,7 +51,19 @@ class PromptBuilder:
             BRAND_VOICE_BLOCK.strip(),
             SAFETY_SYSTEM_PROMPT,
             RECOMMENDATION_SYSTEM_PROMPT,
-            f"Respond in {language_name} (language code: {language}).",
+            (
+                f"Respond in {language_name} (language code: {language})."
+                if language == "en"
+                else (
+                    f"CRITICAL: You MUST respond entirely in {language_name} using its native script. "
+                    f"Do NOT use English words or Latin script — every word must be written in the {language_name} script. "
+                    f"Translate English terms into {language_name}: "
+                    f"e.g. 'tattoo' → use the {language_name} word, 'piercing' → use the {language_name} word, "
+                    f"'booking' → use the {language_name} word. "
+                    f"The SUGGESTED_REPLIES_JSON must also contain {language_name} text in native script, not English. "
+                    f"User may write in Latin script but you must reply in {language_name} script only."
+                )
+            ),
             HANDOFF_HINTS,
             AGE_REMINDER,
             SUGGESTED_REPLIES_INSTRUCTION,

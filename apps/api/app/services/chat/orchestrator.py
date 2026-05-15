@@ -18,6 +18,7 @@ from app.services.ai.prompt_builder import PromptBuilder
 from app.services.ai.provider import AIProvider, AIResponse
 from app.services.ai.safety import HandoffDecision, SafetyService
 from app.services.analytics.tracker import AnalyticsTracker
+from app.services.chat.cache import response_cache
 from app.services.chat.intent import IntentClassifier, IntentResult
 from app.services.chat.memory import MemoryService
 from app.services.chat.response_parts import (
@@ -153,6 +154,26 @@ class ChatOrchestrator:
             intent=intent_res.intent,
             confidence=intent_res.confidence,
         )
+
+        cached = response_cache.get(intent_res.intent, request.language)
+        if cached is not None:
+            assistant_row = await self._memory.store_message(
+                self._db,
+                conv.id,
+                "assistant",
+                cached.content,
+                intent=intent_res.intent,
+                confidence=intent_res.confidence,
+            )
+            return ChatMessageResponse(
+                message_id=assistant_row.id,
+                conversation_id=conv.id,
+                content=cached.content,
+                intent=intent_res.intent,
+                sources=cached.sources,
+                handoff=cached.handoff,
+                suggested_replies=cached.suggested_replies,
+            )
 
         lang_name = self._language.get_language_name(request.language)
 
@@ -366,7 +387,7 @@ class ChatOrchestrator:
             message=assistant_core,
         )
 
-        return ChatMessageResponse(
+        result = ChatMessageResponse(
             message_id=assistant_row.id,
             conversation_id=conv_reload.id,
             content=assistant_core,
@@ -376,6 +397,15 @@ class ChatOrchestrator:
             lead_capture_suggested=lead_flag or captures,
             suggested_replies=suggestions_val,
         )
+
+        response_cache.put(
+            intent=prep.intent_res.intent,
+            language=request.language,
+            response=result,
+            confidence=prep.intent_res.confidence,
+        )
+
+        return result
 
     async def handle_message(self, request: ChatMessageRequest) -> ChatMessageResponse:
         prepared = await self._prepare_core(request)

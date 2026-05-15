@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.config import get_settings
+from app.core.context import request_id_ctx
 from app.core.logging import redact_pii_for_access_log
 
 ACCESS_LOGGER_NAME = "krystal.access"
@@ -22,6 +23,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         header_id = request.headers.get("x-request-id")
         request_id = header_id.strip() if header_id and header_id.strip() else str(uuid.uuid4())
         request.state.request_id = request_id
+        request_id_ctx.set(request_id)
         response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
         return response

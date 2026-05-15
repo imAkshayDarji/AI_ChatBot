@@ -49,6 +49,7 @@ class KnowledgeDocumentResponse(BaseModel):
     content: str
     status: str
     metadata_json: dict | None = None
+    content_hash: str | None = None
     created_at: datetime
     updated_at: datetime
 

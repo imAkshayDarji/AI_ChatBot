@@ -33,6 +33,16 @@ def redact_pii_for_access_log(path: str) -> str:
     return redact_pii(path)
 
 
+class RequestIdFilter(logging.Filter):
+    """Inject request_id from contextvars into every log record."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        from app.core.context import request_id_ctx
+
+        record.request_id = request_id_ctx.get("")  # type: ignore[attr-defined]
+        return True
+
+
 class DevTextFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         original = record.getMessage()
@@ -78,11 +88,14 @@ def setup_logging() -> None:
     resolved = getattr(logging, level_name, logging.INFO)
 
     handler = logging.StreamHandler(sys.stdout)
+    handler.addFilter(RequestIdFilter())
     if settings.ENVIRONMENT == "production":
         handler.setFormatter(JsonLogFormatter())
     else:
         handler.setFormatter(
-            DevTextFormatter(fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s"),
+            DevTextFormatter(
+                fmt="%(asctime)s | %(levelname)s | %(name)s | %(request_id)s | %(message)s"
+            ),
         )
     handler.setLevel(resolved)
 
