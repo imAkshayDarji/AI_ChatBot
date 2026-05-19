@@ -155,7 +155,7 @@ Integration tests (`apps/api/app/tests/integration/conftest.py`) use determinist
 
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:` (prefer short subjects under 72 characters)
 - Branch from `main` with small, reviewable changes
-- All PRs should pass **`ci.yml`** (lint, migrations, pytest without live OpenAI, front build)
+- PRs trigger **`dependency-review.yml`** (supply-chain / vulnerable dependency checks) plus **`ci.yml`** (backend Ruff/Alembic/pytest excluding live OpenAI, frontend lint/tsc/build)
 
 ---
 
