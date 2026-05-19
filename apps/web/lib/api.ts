@@ -64,6 +64,22 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  private async errorDetailFromResponse(response: Response): Promise<string> {
+    const text = await response.text();
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown };
+      if (typeof parsed.detail === "string") {
+        return parsed.detail;
+      }
+    } catch {
+      /* plain text or empty */
+    }
+    if (text.trim().length > 0) {
+      return text;
+    }
+    return `Request failed (${response.status})`;
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit = {}
@@ -87,7 +103,7 @@ class ApiClient {
         headers["Authorization"] = `Bearer ${getAccessToken()}`;
         const retry = await fetch(url, { ...options, headers });
         if (!retry.ok) {
-          throw new ApiError(retry.status, await retry.text());
+          throw new ApiError(retry.status, await this.errorDetailFromResponse(retry));
         }
         return retry.json() as Promise<T>;
       }
@@ -99,7 +115,7 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, await response.text());
+      throw new ApiError(response.status, await this.errorDetailFromResponse(response));
     }
 
     return response.json() as Promise<T>;
@@ -167,7 +183,7 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new ApiError(response.status, await response.text());
+      throw new ApiError(response.status, await this.errorDetailFromResponse(response));
     }
 
     const reader = response.body?.getReader();
@@ -226,7 +242,7 @@ class ApiClient {
       body: JSON.stringify({ email, password }),
     });
     if (!response.ok) {
-      throw new ApiError(response.status, await response.text());
+      throw new ApiError(response.status, await this.errorDetailFromResponse(response));
     }
     const data: TokenResponse = await response.json();
     setAccessToken(data.access_token);

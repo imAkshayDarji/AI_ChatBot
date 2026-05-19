@@ -1,6 +1,6 @@
 # Security Implementation Plan
 
-> **Read PLAN.md before making changes to security-related code.**
+> **Read README.md and docs/ARCHITECTURE.md before making changes to security-related code.**
 >
 > This document covers all MVP security requirements for the KrystalStudio AI chatbot platform. Every item listed here must be implemented before production launch.
 

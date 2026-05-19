@@ -1,6 +1,6 @@
 # Testing Strategy
 
-> **Read PLAN.md before writing or modifying tests.**
+> **Read README.md and docs/ARCHITECTURE.md before writing or modifying tests.**
 >
 > This document defines the testing strategy, test locations, test priorities, and definition of done for the KrystalStudio AI chatbot platform.
 

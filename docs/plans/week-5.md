@@ -97,7 +97,7 @@ apps/web/lib/constants.ts     # create
 apps/web/types/api.ts        # extend
 ```
 
-**Imports:** Prefer **`@/…`** aliases per project **`PLAN.md`** / ESLint conventions.
+**Imports:** Prefer **`@/…`** aliases per project **`docs/ARCHITECTURE.md`** / ESLint conventions.
 
 **api.ts:**
 
@@ -768,6 +768,6 @@ git push origin <branch>
 ## After Week 5 Completion
 
 - [ ] Update **`docs/API_CONTRACT.md`** … all **Task 5.0** routes + types the web client uses
-- [ ] Update PLAN.md checklist — mark Phase 13, 14 items as done
+- [ ] Update docs/ARCHITECTURE.md checklist — mark Phase 13, 14 items as done
 - [ ] Update this file's status to COMPLETED
 - [ ] Proceed to `docs/plans/week-6.md`

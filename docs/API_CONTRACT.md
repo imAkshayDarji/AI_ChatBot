@@ -1,6 +1,6 @@
 # API Contract — Krystal Studio AI Chatbot
 
-> **Source of truth:** This document defines every API endpoint for the Krystal Studio AI Chatbot platform. All implementations must follow these contracts exactly. Read PLAN.md before modifying this file.
+> **Source of truth:** This document defines every API endpoint for the Krystal Studio AI Chatbot platform. All implementations must follow these contracts exactly. Read README.md and docs/ARCHITECTURE.md before modifying this file.
 
 ---
 

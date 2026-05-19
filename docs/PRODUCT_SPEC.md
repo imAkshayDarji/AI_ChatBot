@@ -1,6 +1,6 @@
 # Product Specification — Krystal Studio AI Chatbot
 
-> **Source of truth:** This document defines the product scope, user personas, user stories, and success criteria for the Krystal Studio AI Chatbot MVP. Read PLAN.md before modifying this file.
+> **Source of truth:** This document defines the product scope, user personas, user stories, and success criteria for the Krystal Studio AI Chatbot MVP. Read README.md and docs/ARCHITECTURE.md before modifying this file.
 
 ---
 

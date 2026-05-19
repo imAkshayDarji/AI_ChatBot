@@ -1,6 +1,6 @@
 # Deployment Guide
 
-> **Read PLAN.md before making deployment changes.**
+> **Read README.md and docs/ARCHITECTURE.md before making deployment changes.**
 >
 > This document covers local development setup, production deployment, CI/CD, and operational procedures for the KrystalStudio platform.
 

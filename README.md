@@ -1,105 +1,164 @@
 # Krystal Studio — AI Chatbot Platform
 
-Production-grade AI chatbot for a Tattoo, Piercing, and Dreadlock Studio. Built with FastAPI + PostgreSQL + pgvector (backend) and Next.js + TypeScript (frontend).
+Production-grade AI chatbot for a tattoo, piercing, and dreadlock studio. The stack is **FastAPI** + **PostgreSQL** + **pgvector** (API and RAG) and **Next.js** + **TypeScript** + **Tailwind** (marketing site + embedded chat widget + admin console).
 
-## Tech Stack
+---
+
+## Features
+
+| Area | Capability |
+|------|-------------|
+| **Chat** | Multilingual UX (English / Hindi / Gujarati-oriented copy), streamed replies, studio handoffs, quick replies |
+| **RAG** | Hybrid retrieval over curated studio knowledge — vector similarity (`pgvector`) + full-text |
+| **Safety** | Medical / pricing / policy guardrails, prompt-injection defenses (see `docs/AI_SYSTEM.md`) |
+| **Leads** | Capture contact intent from conversations |
+| **Admin** | JWT auth, knowledge ingestion & reindex, conversations, leads, analytics, settings |
+| **Ops** | Structured logging with PII-aware redaction, health checks, rate limits |
+
+---
+
+## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async), asyncpg |
-| Database | PostgreSQL 16 + pgvector |
-| AI | OpenAI GPT-4o-mini, text-embedding-3-large (3072d) |
-| Frontend | Next.js 15, TypeScript, Tailwind CSS, shadcn/ui |
-| Hosting | Railway (API + DB), Vercel (frontend) |
+| Backend | Python 3.12+, FastAPI, SQLAlchemy 2 (async), asyncpg |
+| Database | PostgreSQL 16 + `pgvector` + `halfvec`/HNSW where configured |
+| AI | OpenAI (default: `gpt-4o-mini` chat, `text-embedding-3-large` embeddings) |
+| Frontend | Next.js 16+, React 19+, TypeScript, Tailwind CSS v4 |
+| CI | GitHub Actions — backend Ruff, Alembic, pytest; frontend ESLint / tests / build |
+
+Hosting is documented for **Railway** (API + DB) and **Vercel** (web); see `docs/DEPLOYMENT.md` for overrides.
+
+---
 
 ## Prerequisites
 
-- Python 3.12+
-- Node.js 18+ / Bun
-- PostgreSQL 16 with pgvector extension
-- OpenAI API key
+- **Python** 3.12+
+- **Node** 18+ with **pnpm** (repo Makefile uses `pnpm`)
+- **Docker** Desktop (recommended for local PostgreSQL via compose)
+- **OpenAI API key** (for real chat/embeddings locally)
+- PostgreSQL **16** with the **vector** extension if you skip Docker
 
-## Local Setup
+---
+
+## Quick start
 
 ```bash
-# 1. Clone and install dependencies
-cp .env.example .env          # then fill in real values
-cd apps/api && pip install -r requirements.txt
-cd apps/web && bun install
+# 1. Environment
+cp .env.example .env
+# Edit .env — set OPENAI_API_KEY, DATABASE_URL, JWT_SECRET for real use.
 
-# 2. Start PostgreSQL (Docker or local)
-make docker-up                # uses infra/docker/docker-compose.yml
+# 2. Backend
+cd apps/api && pip install -r requirements.txt   # pinned deps for repeatable installs
 
-# 3. Run migrations and seed data
+# 3. Frontend
+cd ../web && pnpm install
+
+# 4. Postgres (from repo root)
+make docker-up
 make migrate
 make seed
 
-# 4. Start dev servers (two terminals)
-make dev-api                  # http://localhost:8000
-make dev-web                  # http://localhost:3000
+# 5. Dev servers — two terminals, from repo root
+make dev-api    # http://localhost:8000  (Swagger: /docs)
+make dev-web    # http://localhost:3000
 ```
 
-## Environment Variables
+If Postgres is down, API routes that need the DB respond with **`503`** and a hint to run **`make docker-up`** (see `apps/api/app/core/errors.py`).
 
-See `.env.example` for the full list. Key variables:
+---
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL async connection string |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `JWT_SECRET` | Must be changed from default in production |
-| `CORS_ORIGINS` | Comma-separated allowed origins |
-| `ENVIRONMENT` | `development` or `production` |
-| `SENTRY_DSN` | Optional Sentry DSN for error tracking |
+## Makefile shortcuts
+
+| Target | Purpose |
+|--------|---------|
+| `make dev-api` | Run FastAPI with reload |
+| `make dev-web` | Run Next dev server |
+| `make docker-up` / `docker-down` | Start/stop local Postgres (`infra/docker/docker-compose.yml`) |
+| `make migrate` | `alembic upgrade head` |
+| `make seed` | Seed admin (`apps/api/scripts/seed_admin.py`) |
+| `make test-api` | Pytest excluding integration-heavy paths where `SKIP_INTEGRATION=1` |
+| `make test-api-integration` | Full integration pytest (needs DB) |
+| `make lint` | API Ruff + web ESLint |
+
+---
+
+## Documentation index
+
+| File | Contents |
+|------|----------|
+| `docs/ARCHITECTURE.md` | System shape, layering, diagrams |
+| `docs/PRODUCT_SPEC.md` | Product scope and personas |
+| `docs/API_CONTRACT.md` | HTTP API contract |
+| `docs/DATABASE_SCHEMA.md` | Tables, columns, constraints |
+| `docs/AI_SYSTEM.md` | RAG, prompting, routing, safety |
+| `docs/SECURITY.md` | Threat model baseline, JWT, secrets |
+| `docs/DEPLOYMENT.md` | Railway / Vercel / Docker |
+| `docs/TESTING.md` | Backend + frontend testing |
+| `docs/plans/week-*.md` | Archived weekly delivery notes |
+
+---
+
+## Environment variables
+
+The canonical list lives in **`.env.example`**. Highlights:
+
+| Variable | Role |
+|---------|------|
+| `DATABASE_URL` | Async SQLAlchemy DSN (`postgresql+asyncpg://…`) |
+| `OPENAI_API_KEY` | **Secret** — never commit or expose to the browser |
+| `JWT_SECRET` | **Secret** — must not stay at the repo default in production |
+| `CORS_ORIGINS` | Allowed browser origins (`http://localhost:3000`, prod domains) |
+| `NEXT_PUBLIC_API_URL` | Browser-visible API base (safe — no secrets) |
+
+Frontend code must **only** surface `NEXT_PUBLIC_*` variables to the bundle.
+
+---
+
+## Public repository hygiene
+
+- **No secrets in git.** Use `.env` locally (gitignored) and platform secret managers in production.
+- **`plan.md` at repo root is gitignored** — long-form playbook stays local-only.
+- **Interview-preparation artifacts** matching `docs/KRYSTAL_STUDIO_INTERVIEW_PREP*` and `scripts/interview_md_to_pdf.py` are gitignored.
+- **`krystal_dev_password` in compose / `.env.example`** is **local development only**. Change all credentials before any shared or production deployment.
+- Prefer **credential rotation** (`JWT_SECRET`, DB passwords, API keys) when forking this repo publicly.
+
+See also **`docs/SECURITY.md`**.
+
+---
+
+## Project layout
+
+```
+apps/api/       FastAPI backend, Alembic, pytest
+apps/web/       Next.js app — public pages, chat widget, admin
+docs/           Specs & decisions
+infra/docker/   Local PostgreSQL Compose file
+scripts/        Seeds, backups, utilities
+```
+
+---
 
 ## Testing
 
 ```bash
-# Unit tests only (no DB required)
 make test-api
-
-# Unit + integration tests (requires PostgreSQL)
-make test-api-integration
-
-# Frontend
-cd apps/web && bun run lint && bunx tsc --noEmit
+make test-api-integration   # PostgreSQL required
+cd apps/web && pnpm test && pnpm exec tsc --noEmit && pnpm lint
 ```
 
-## Project Structure
+Integration tests (`apps/api/app/tests/integration/conftest.py`) use deterministic embedding stubs and documented **dev-only** defaults — override with `.env` for your machine.
 
-```
-apps/
-  api/              # FastAPI backend
-    app/
-      api/v1/       # Route handlers
-      core/         # Config, security, rate limiting, logging
-      db/models/    # SQLAlchemy models
-      schemas/      # Pydantic request/response models
-      services/     # Business logic (chat, RAG, leads)
-    alembic/        # Database migrations
-    tests/          # Unit + integration + AI eval tests
-  web/              # Next.js frontend
-    app/            # Pages and layouts
-    components/     # React components
-    lib/            # API client, utilities
-scripts/            # Backup, seed scripts
-docs/               # Plans, architecture docs
-```
-
-## Deployment
-
-- **Backend**: Railway — auto-deploys from `main` branch. See `apps/api/Dockerfile`.
-- **Frontend**: Vercel — auto-deploys from `main` branch. Root directory: `apps/web`.
-- **Database**: Railway PostgreSQL with pgvector.
-
-### Rollback
-
-1. **API**: Redeploy previous Railway deployment from dashboard.
-2. **Frontend**: Promote previous Vercel deployment in dashboard.
-3. **Database**: Restore from backup (`scripts/backup_db.sh`) or `alembic downgrade -1` if reversible.
+---
 
 ## Contributing
 
-- Trunk-based development on `main`
-- Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`
-- All PRs must pass CI (lint + tests + migration check)
+- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:` (prefer short subjects under 72 characters)
+- Branch from `main` with small, reviewable changes
+- All PRs should pass **`ci.yml`** (lint, migrations, pytest without live OpenAI, front build)
+
+---
+
+## License
+
+No license file is bundled yet. Adding an explicit **`LICENSE`** (MIT, Apache-2.0, etc.) is recommended before wide redistribution.

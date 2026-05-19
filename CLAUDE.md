@@ -5,7 +5,9 @@
 Production-grade AI chatbot for a Tattoo, Piercing, and Dreadlock Studio.
 Built with FastAPI + PostgreSQL + pgvector (backend) and Next.js + TypeScript (frontend).
 
-Read PLAN.md before making any changes.
+Read `README.md` and `docs/ARCHITECTURE.md` before making any changes.
+
+The historical monolithic playbook lives in `./plan.md` locally (gitignored — do not commit it).
 
 ## Skill routing
 

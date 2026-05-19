@@ -14,3 +14,14 @@ build/
 venv/
 .venv/
 postgres_data/
+
+# Local playbook / planning artifacts (not published).
+plan.md
+PLAN.md
+**/plan.md
+**/PLAN.md
+
+# Interview prep (keep local only).
+docs/KRYSTAL_STUDIO_INTERVIEW_PREP*.md
+docs/KRYSTAL_STUDIO_INTERVIEW_PREP*.pdf
+scripts/interview_md_to_pdf.py

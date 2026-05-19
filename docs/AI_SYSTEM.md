@@ -1,6 +1,6 @@
 # AI System Design
 
-> **Read PLAN.md before making changes to any AI-related code.**
+> **Read README.md and docs/ARCHITECTURE.md before making changes to any AI-related code.**
 >
 > This document is the authoritative reference for the AI subsystem including provider abstraction, prompt construction, RAG pipeline, safety rules, and memory strategy.
 
@@ -840,7 +840,7 @@ All retrieved knowledge chunks are treated as untrusted content:
 
 ```text
 AI_PROVIDER=openai
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=<your-openai-api-key>
 CHAT_MODEL=gpt-4o-mini
 EMBEDDING_MODEL=text-embedding-3-large
 ```

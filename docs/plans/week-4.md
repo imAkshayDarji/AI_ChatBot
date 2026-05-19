@@ -146,7 +146,7 @@ class PromptBuilder:
         ...
 ```
 
-**System prompt must include (from PLAN.md Section 8.3):**
+**System prompt must include (from docs/ARCHITECTURE.md Section 8.3):**
 
 ```
 - Brand tone (professional, friendly, casual studio vibe, trustworthy, helpful, honest when unsure)
@@ -286,7 +286,7 @@ class HandoffDecision:
     reason: str | None
 ```
 
-**Prompt injection patterns to detect (from PLAN.md Section 15.4):**
+**Prompt injection patterns to detect (from docs/ARCHITECTURE.md Section 15.4):**
 
 ```python
 INJECTION_PATTERNS = [
@@ -310,7 +310,7 @@ MEDICAL_KEYWORDS = [
 ]
 ```
 
-**Handoff triggers (from PLAN.md Section 8.7):**
+**Handoff triggers (from docs/ARCHITECTURE.md Section 8.7):**
 
 ```python
 HANDOFF_TRIGGERS = [
@@ -592,7 +592,7 @@ async def test_get_history_limits_to_max(db_session, conversation):
 apps/api/app/services/chat/orchestrator.py
 ```
 
-**This is the most critical service. It follows PLAN.md Rule 1.4 — thin routes, fat services.**
+**This is the most critical service. It follows docs/ARCHITECTURE.md Rule 1.4 — thin routes, fat services.**
 
 **Class:**
 
@@ -614,7 +614,7 @@ class ChatOrchestrator:
 
     async def handle_message(self, request: ChatMessageRequest) -> ChatMessageResponse:
         """
-        Full chat flow (from PLAN.md Section 3.2):
+        Full chat flow (from docs/ARCHITECTURE.md Section 3.2):
 
         1. Validate request
         2. Load/create conversation
@@ -1047,7 +1047,7 @@ def test_create_lead_no_consent(client):
 apps/api/app/services/analytics/tracker.py
 ```
 
-**Events to track (from PLAN.md Section 17.1):**
+**Events to track (from docs/ARCHITECTURE.md Section 17.1):**
 
 ```python
 EVENT_TYPES = [
@@ -1211,6 +1211,6 @@ git push origin main
 
 ## After Week 4 Completion
 
-- [x] Update PLAN.md checklist — mark Phase 9, 10, 11 **week-level** backend deliverables (`Updated Checklist` section)
+- [x] Update docs/ARCHITECTURE.md checklist — mark Phase 9, 10, 11 **week-level** backend deliverables (`Updated Checklist` section)
 - [x] Update this file's status to COMPLETED
 - [ ] Proceed to `docs/plans/week-5.md` (pick up **Week 5** when ready — frontend widget + admin)

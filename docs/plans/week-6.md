@@ -190,7 +190,7 @@ apps/api/app/tests/ai_eval/test_prompt_injection_live.py   # real OpenAI — man
 
 **Rule:** `pytest` on PRs runs **unit** tests only. Mark live tests with `@pytest.mark.integration` or `@pytest.mark.openai` and exclude them in CI (for example add `-m "not openai"` to the pytest command in `.github/workflows/ci.yml` once markers exist).
 
-**Test cases (from PLAN.md Section 16.5):**
+**Test cases (from docs/ARCHITECTURE.md Section 16.5):**
 
 ```json
 [
@@ -647,7 +647,7 @@ No code changes required.
 ### Documentation
 - [ ] README.md is complete
 - [ ] .env.example has all required vars documented (`SENTRY_DSN`, etc.)
-- [ ] PLAN.md checklist is updated
+- [ ] docs/ARCHITECTURE.md checklist is updated
 - [ ] Rollback procedure understood by whoever operates prod
 
 ---
@@ -692,8 +692,8 @@ git push origin <branch>
 
 ## After Week 6 Completion
 
-- [ ] Update PLAN.md checklist — mark ALL items as done
-- [ ] Update PLAN.md Section 22 — all checkboxes checked
+- [ ] Update docs/ARCHITECTURE.md checklist — mark ALL items as done
+- [ ] Update docs/ARCHITECTURE.md Section 22 — all checkboxes checked
 - [ ] Update this file's status to COMPLETED
 - [ ] MVP IS LIVE
 

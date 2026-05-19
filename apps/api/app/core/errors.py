@@ -1,10 +1,12 @@
 """Domain errors and FastAPI handlers. Routes raise domain errors; handlers map to HTTP."""
 
 import time
+from http import HTTPStatus
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sqlalchemy.exc import OperationalError
 
 
 class DomainError(Exception):
@@ -108,7 +110,30 @@ class AIProviderError(DomainError):
         super().__init__(detail)
 
 
+_DEV_DB_HINT = (
+    "Database is unavailable. From the repo root run `make docker-up` "
+    "(Docker must be running), then `make migrate`."
+)
+
+
+def _db_unavailable_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+        content={"detail": _DEV_DB_HINT},
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(OperationalError)
+    async def db_operational_handler(_request: Request, _exc: OperationalError) -> JSONResponse:
+        return _db_unavailable_response()
+
+    @app.exception_handler(ConnectionRefusedError)
+    async def db_connection_refused_handler(
+        _request: Request, _exc: ConnectionRefusedError
+    ) -> JSONResponse:
+        return _db_unavailable_response()
+
     @app.exception_handler(ValidationError)
     async def pydantic_exc(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(

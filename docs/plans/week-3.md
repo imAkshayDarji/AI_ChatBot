@@ -129,7 +129,7 @@ def test_detect_gujarati():
 apps/api/app/services/rag/chunker.py
 ```
 
-**Configuration (from PLAN.md Section 7.3):**
+**Configuration (from docs/ARCHITECTURE.md Section 7.3):**
 
 Pick **one coherent unit** (characters *or* tokens) and document it next to constants. PLAN speaks in rough character targets **and** overlapping windows — for MVP implementation, use **characters** for both slice size and overlap unless you integrate a tokenizer.
 
@@ -160,7 +160,7 @@ class Chunk:
     metadata: dict
 ```
 
-**Chunking rules from PLAN.md:**
+**Chunking rules from docs/ARCHITECTURE.md:**
 - **`chunk_faq`:** validate input — each dict must have non-empty **`q`** and **`a`** (raise a clear **`ValueError`** or domain error); skip or reject malformed rows explicitly (no silent drops).
 - Keep FAQ question and answer together
 - Keep aftercare steps together
@@ -233,7 +233,7 @@ class EmbeddingService:
 ```
 
 **Constraints:**
-- All embedding calls MUST go through this service (PLAN.md Rule 1.5)
+- All embedding calls MUST go through this service (docs/ARCHITECTURE.md Rule 1.5)
 - Handle API errors with **retry with backoff** (e.g. up to 3 attempts on transient errors); **on final failure raise `EmbeddingError`** with status/body context (do not swallow)
 - **`embed_texts`:** if batching, a **partial batch failure must fail the whole batch** unless you implement explicit per-item error aggregation — MVP: **fail fast** after retries
 - Log token usage (**aggregate counts**, avoid logging full payloads)
@@ -448,7 +448,7 @@ LIMIT :top_k
 **Week 2 alignment:** `knowledge_chunks.service_type` is **NOT NULL** with default **`general`**. Passing `service_type=None` in Python means **omit** the filter (include all chunks). Passing `service_type="tattoo"` restricts to that value; chunks that stayed default `general` still match only when you filter by `general` explicitly.
 
 **Constraints:**
-- All retrieval MUST go through this service (PLAN.md Rule 1.5)
+- All retrieval MUST go through this service (docs/ARCHITECTURE.md Rule 1.5)
 - **Empty-query short-circuit** (see step 1 above)
 - Language fallback: prefer user's language, then English
 - Similarity threshold: configurable, default 0.5
@@ -570,7 +570,7 @@ class ModelRouter:
 ```
 
 **Constraints:**
-- All AI calls MUST go through `provider.py` (PLAN.md Rule 1.5)
+- All AI calls MUST go through `provider.py` (docs/ARCHITECTURE.md Rule 1.5)
 - Provider selection via `AI_PROVIDER` env var
 - Error handling: retry up to 2 times, then raise
 - Log token usage per request
@@ -695,6 +695,6 @@ git push origin main
 
 ## After Week 3 Completion
 
-- [x] Update PLAN.md checklist — mark Phase 6, 7, 8 items as done
+- [x] Update docs/ARCHITECTURE.md checklist — mark Phase 6, 7, 8 items as done
 - [x] Update this file's status to COMPLETED
 - [x] Proceed to `docs/plans/week-4.md` *(next implementation week — see that file when starting Week 4)*

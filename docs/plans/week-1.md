@@ -68,7 +68,7 @@ These questions help populate configuration values. If you don't have answers ye
 **Files to create:**
 
 ```
-docs/ARCHITECTURE.md
+README.md
 docs/PRODUCT_SPEC.md
 docs/API_CONTRACT.md
 docs/DATABASE_SCHEMA.md
@@ -79,18 +79,20 @@ docs/TESTING.md
 docs/DECISIONS/.gitkeep
 ```
 
+**Note:** Keep any long-form internal playbook as `./plan.md` **locally only** (`plan.md` is gitignored).
+
 **Constraints:**
-- Each document must be derived from PLAN.md
-- API_CONTRACT.md must list every endpoint from PLAN.md Section 9
-- DATABASE_SCHEMA.md must cover all 8 core tables from PLAN.md Section 6
+- Each document must be derived from `README.md`, `docs/ARCHITECTURE.md`, and stakeholder requirements.
+- API_CONTRACT.md must list every MVP endpoint documented in docs.
+- DATABASE_SCHEMA.md must cover all core tables defined in migrations.
 - AI_SYSTEM.md must cover provider abstraction, prompt builder, safety, RAG flow
-- SECURITY.md must cover all MVP security requirements from PLAN.md Section 15
+- SECURITY.md must cover MVP security baseline (auth, JWT, secrets, privacy) per project scope
 - Do NOT implement code in this task. Documentation only.
 
 **Verification:**
 - All 8 document files exist
 - Each document is internally consistent
-- Each document aligns with PLAN.md
+- Each document aligns with `docs/ARCHITECTURE.md`
 
 ---
 
@@ -109,10 +111,10 @@ docs/DECISIONS/.gitkeep
 .cursor/rules/security.mdc
 ```
 
-**Content:** Use exact content from PLAN.md Section 13.1–13.6.
+**Content:** Align rule files with `docs/ARCHITECTURE.md` and security guidelines.
 
 **Constraints:**
-- Do not modify or invent rules beyond what PLAN.md specifies.
+- Do not modify project conventions beyond documented architecture / security posture.
 - These rules govern all future AI-generated code.
 
 **Verification:**
@@ -220,10 +222,10 @@ studio-ai-platform/
   README.md
 ```
 
-**Note:** The project root is currently `/Users/akshaydarji/myProjects/KrystalStudio/`. The monorepo structure will be created inside this directory. We will reorganize so that `plan.md` and `docs/` sit at the monorepo root.
+**Note:** The monorepo root contains `README.md`, `apps/`, `docs/`, `infra/`, and supporting config. Use `docs/ARCHITECTURE.md` for the canonical folder layout.
 
 **Constraints:**
-- Follow PLAN.md Section 4.1 exactly
+- Follow `docs/ARCHITECTURE.md` for repository layout conventions.
 - All `__init__.py` files for Python packages
 - `.gitkeep` for empty directories
 
@@ -602,6 +604,6 @@ git push -u origin main
 
 ## After Week 1 Completion
 
-- [ ] Update PLAN.md Section 22 (checklist) — mark Phase 0 and Phase 1 items as done
+- [ ] Update `TODOS.md` / changelog — mark Phase 0 and Phase 1 items as done
 - [ ] Update this file's status to COMPLETED
 - [ ] Proceed to `docs/plans/week-2.md`

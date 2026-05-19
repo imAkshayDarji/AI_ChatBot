@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { HandoffInfo, StreamDone } from "@/types/api";
 import { MessageBubble } from "./MessageBubble";
 import { QuickReplies } from "./QuickReplies";
@@ -56,12 +56,16 @@ export function ChatWidget() {
       ]);
       setShowLeadForm(false);
       setStreamingContent("");
-    } catch {
+    } catch (err) {
+      const content =
+        err instanceof ApiError
+          ? err.message
+          : "Unable to start chat. Please try again later.";
       setMessages([
         {
           id: "error-init",
           role: "assistant",
-          content: "Unable to start chat. Please try again later.",
+          content,
           timestamp: new Date(),
         },
       ]);

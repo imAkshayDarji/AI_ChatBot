@@ -1,6 +1,6 @@
 # Database Schema — Krystal Studio AI Chatbot
 
-> **Source of truth:** This document defines the complete database schema for the Krystal Studio AI Chatbot platform. All migrations and models must follow this schema exactly. Read PLAN.md before modifying this file.
+> **Source of truth:** This document defines the complete database schema for the Krystal Studio AI Chatbot platform. All migrations and models must follow this schema exactly. Read README.md and docs/ARCHITECTURE.md before modifying this file.
 
 ---
 

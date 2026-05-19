@@ -12,7 +12,7 @@ export default function Home() {
           </h1>
         </div>
         <p className="max-w-md text-lg text-zinc-400">
-          Tattoo, Piercing &amp; Dreadlock Studio
+          Tattoo, Piercing & Dreadlock Studio
         </p>
         <p className="max-w-sm text-sm text-zinc-500">
           Chat with our AI assistant to learn about services, pricing, and aftercare.

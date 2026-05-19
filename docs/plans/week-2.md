@@ -311,11 +311,11 @@ apps/api/app/schemas/chat.py
 apps/api/app/schemas/analytics.py
 ```
 
-**`api_keys` (minimal):** id, provider (text), key_encrypted or hashed secret reference, is_active, created_at, updated_at — align with PLAN.md future provider rotation (no need to wire UI this week).
+**`api_keys` (minimal):** id, provider (text), key_encrypted or hashed secret reference, is_active, created_at, updated_at — align with docs/ARCHITECTURE.md future provider rotation (no need to wire UI this week).
 
 **`audit_logs`:** id, user_id (FK users nullable if system), action, entity_type, entity_id (UUID), changes_json (nullable), created_at.
 
-Follow **PLAN.md Section 6.3** for lead/chat/analytics/feedback columns + CHECKs for statuses/roles/rating.
+Follow **docs/ARCHITECTURE.md Section 6.3** for lead/chat/analytics/feedback columns + CHECKs for statuses/roles/rating.
 
 **Verification:** `\dt` lists **11** core tables: users, refresh_tokens, api_keys, audit_logs, knowledge_documents, knowledge_chunks, leads, conversations, messages, analytics_events, ai_feedback.
 
@@ -381,6 +381,6 @@ git push -u origin feature/week2-database-auth
 
 ## After Week 2 Completion
 
-- [ ] Update PLAN.md checklist — mark Phase 2, 3, 4, 5 items as done
+- [ ] Update docs/ARCHITECTURE.md checklist — mark Phase 2, 3, 4, 5 items as done
 - [ ] Update this file's status to COMPLETED
 - [ ] Proceed to `docs/plans/week-3.md`

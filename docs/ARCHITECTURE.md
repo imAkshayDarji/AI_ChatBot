@@ -282,8 +282,9 @@ KrystalStudio/
 ├── .github/                          # GitHub Actions workflows
 │   └── workflows/
 │
-├── PLAN.md                           # Master implementation plan
-└── README.md                         # Project overview
+├── README.md                         # Project overview & local setup
+├── CLAUDE.md                         # Maintainer / Cursor agent playbook
+└── Makefile                          # Repo-level dev shortcuts
 ```
 
 ---
