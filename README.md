@@ -161,4 +161,4 @@ Integration tests (`apps/api/app/tests/integration/conftest.py`) use determinist
 
 ## License
 
-No license file is bundled yet. Adding an explicit **`LICENSE`** (MIT, Apache-2.0, etc.) is recommended before wide redistribution.
+Distributed under the **MIT License** — see [`LICENSE`](LICENSE).
